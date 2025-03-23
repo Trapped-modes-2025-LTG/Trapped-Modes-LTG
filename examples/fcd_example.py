@@ -1,4 +1,6 @@
 import os
+import sys
+sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 from pyfcd.fcd import compute_height_map
 
 reference_path = os.path.join('examples/pictures/', 'reference_2.png')
