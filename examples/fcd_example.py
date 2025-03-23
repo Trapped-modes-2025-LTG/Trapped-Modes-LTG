@@ -1,5 +1,5 @@
 import os
-route = '/home/juan/fcd-analysis/Codigo nuevo/prueba1'
+from pyfcd.fcd import compute_height_map
 
 reference_path = os.path.join('examples/pictures/', 'reference_2.png')
 displaced_path = os.path.join('examples/pictures/', '202406_1457001661.bmp')
