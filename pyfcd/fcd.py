@@ -86,8 +86,7 @@ def compute_displacement_field(phases, carriers):
     u = (carriers[1].frequencies[0] * phases[0] - carriers[0].frequencies[0] * phases[1]) / det_a
     v = (carriers[0].frequencies[1] * phases[1] - carriers[1].frequencies[1] * phases[0]) / det_a
     return np.array([u, v])
-
-# Función principal para calcular el mapa de altura
+    
 def compute_height_map(reference_path, displaced_path, square_size, height=1.0, unwrap=True):
     """
     Compute the height map from two images.
