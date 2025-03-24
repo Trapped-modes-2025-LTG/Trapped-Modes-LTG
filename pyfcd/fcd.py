@@ -1,13 +1,10 @@
 import numpy as np
-import matplotlib.pyplot as plt
 from skimage import io, filters
-from scipy.fft import fft2, fftshift, ifft2
+from scipy.fft import fft2, ifft2
 from skimage.restoration import unwrap_phase
-from matplotlib.colors import LogNorm
 import pyfcd.fourier_space as fs
 from pyfcd.carriers import Carrier
-from pyfcd.height_map import HeightMap
-import os
+
 def load_image(path):
     return io.imread(path, as_gray=True).astype(np.float32)
 
@@ -111,12 +108,5 @@ def compute_height_map(reference_path, displaced_path, square_size, height=1.0, 
     height_gradient = -displacement_field / height
 
     height_map = fs.integrate_in_fourier(*height_gradient, calibration_factor)
-    return HeightMap(height_map, phases, calibration_factor)
-
-
-
-
-
-    
-
-    
+    return height_map, phases, calibration_factor
+    #return HeightMap(height_map, phases, calibration_factor)    #TODO: We dont need the image
