@@ -1,7 +1,7 @@
 import os
 import sys
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
-from pyfcd.fcd import compute_height_map
+from pyfcd.fcd_path import compute_height_map
 from pyfcd.height_map import HeightMap
 
 base_dir = os.path.dirname(__file__)
