@@ -2,7 +2,7 @@ import os
 import sys
 import numpy as np
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
-from pyfcd.fcd_path import compute_height_map
+from pyfcd.fcd import compute_height_map
 import matplotlib.pyplot as plt
 
 base_dir = os.path.dirname(__file__)
