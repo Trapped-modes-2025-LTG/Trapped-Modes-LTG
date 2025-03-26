@@ -4,17 +4,50 @@ import numpy as np
 
 
 def wavenumber(size, calibration_factor=1, shifted=False):
+    """
+    Compute the wavenumber (spatial frequency) vector.
+    
+    Parameters:
+        size (int): Length of the frequency vector
+        calibration_factor (float): Scaling factor for frequency units (default=1)
+        shifted (bool): Whether to center the frequencies (fftshift) (default=False)
+    
+    Returns:
+        np.ndarray: 1D array of wavenumbers
+    """
     frequencies = fftfreq(size, calibration_factor / (2.0 * np.pi))
     return fftshift(frequencies) if shifted else frequencies
 
 
 def wavenumber_meshgrid(shape, calibration_factor=1, shifted=False):
+    """
+    Create a 2D meshgrid of wavenumbers.
+    
+    Parameters:
+        shape (tuple): Grid dimensions (rows, cols)
+        calibration_factor (float): Scaling factor for frequency units (default=1)
+        shifted (bool): Whether to center the frequencies (default=False)
+    
+    Returns:
+        tuple: (kx, ky) meshgrid arrays in 'ij' indexing
+    """
     k_rows = wavenumber(shape[0], calibration_factor, shifted)
     k_cols = wavenumber(shape[1], calibration_factor, shifted)
     return np.meshgrid(k_rows, k_cols, indexing='ij')
 
 
 def remove_degeneracy(kx, ky, shape):
+    """
+    Remove Fourier space degeneracy at Nyquist frequencies.
+    
+    Parameters:
+        kx (np.ndarray): Horizontal wavenumbers mesh
+        ky (np.ndarray): Vertical wavenumbers mesh
+        shape (tuple): Original array shape (rows, cols)
+    
+    Returns:
+        None: Modifies input arrays in-place
+    """
     if shape[1] % 2 == 0:
         kx[:, shape[1]//2+1] = 0  # Remove degeneracy at kx=Nx/2 leading to imaginary part.
 
@@ -23,6 +56,17 @@ def remove_degeneracy(kx, ky, shape):
 
 
 def pixel_to_wavenumber(image_shape, locations, calibration_factor=1):
+    """
+    Convert pixel coordinates to wavenumber values.
+    
+    Parameters:
+        image_shape (tuple): Shape of the original image (rows, cols)
+        locations (np.ndarray|tuple): Pixel coordinate(s) to convert
+        calibration_factor (float): Scaling factor (default=1)
+    
+    Returns:
+        np.ndarray: Corresponding wavenumber coordinates
+    """
     k_space_rows = wavenumber(image_shape[0], calibration_factor, shifted=True)
     k_space_cols = wavenumber(image_shape[1], calibration_factor, shifted=True)
 
@@ -33,6 +77,17 @@ def pixel_to_wavenumber(image_shape, locations, calibration_factor=1):
 
 
 def integrate_in_fourier(gradient_x, gradient_y, calibration_factor=1):  # TODO: Agregar contribución lineal opcional.
+    """
+    Reconstruct a field from its gradients using Fourier integration.
+    
+    Parameters:
+        gradient_x (np.ndarray): x-component of gradient field
+        gradient_y (np.ndarray): y-component of gradient field
+        calibration_factor (float): Scaling factor (default=1)
+    
+    Returns:
+        np.ndarray: Reconstructed scalar field
+    """
     ky, kx = wavenumber_meshgrid(gradient_x.shape, calibration_factor)  # TODO: Precalcular esto en FCD() con referencia.
     k2 = kx ** 2 + ky ** 2
     k2[0, 0] = 1
@@ -45,6 +100,17 @@ def integrate_in_fourier(gradient_x, gradient_y, calibration_factor=1):  # TODO:
 
 
 def find_peak_locations(image, threshold, no_peaks):
+    """
+    Detect brightest peaks in thresholded image.
+    
+    Parameters:
+        image (np.ndarray): Input image
+        threshold (float): Intensity threshold for peak detection
+        no_peaks (int): Maximum number of peaks to return
+    
+    Returns:
+        list: Coordinates of detected peaks [(row1, col1), ...]
+    """
     blob_image = np.array(image > threshold)  # TODO: el np.array() no es necesario pero sino piensa que blob es tipo bool.
 
     # make the borders false
@@ -65,6 +131,15 @@ def find_peak_locations(image, threshold, no_peaks):
 
 
 def find_peaks(image):
+    """
+    Identify dominant frequency peaks in FFT spectrum.
+    
+    Parameters:
+        image (np.ndarray): Input image
+    
+    Returns:
+        tuple: Coordinates of (rightmost_peak, perpendicular_peak)
+    """
     image_fft = fftshift(np.abs(fft2(image - np.mean(image))))
 
     def highpass_mask():
