@@ -16,7 +16,8 @@ from skimage.draw import disk
 #%%
 
 # leer the imagen .tif 
-image_path = '/Users/mateoeljatib/Documents/structure.bmp'  # Replace with your image path
+base_dir = os.path.dirname(__file__)
+image_path = os.path.join(base_dir, "202406_1445000611.bmp")  # Replace with your image path
 image = io.imread(image_path)
 
 # Step 2: Convert to grayscale if the image is not already
