@@ -5,13 +5,6 @@ from skimage.restoration import unwrap_phase
 import pyfcd.fourier_space as fs
 from pyfcd.carriers import Carrier
 
-
-
-def binarize_image(image):
-    """Binarize an image using Otsu's thresholding method."""
-    threshold = filters.threshold_otsu(image)
-    return image > threshold
-
 def compute_carriers(reference, calibration_factor, square_size):
     """
     Compute the carriers for the reference image.
