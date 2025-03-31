@@ -5,15 +5,14 @@ from skimage.restoration import unwrap_phase
 import pyfcd.fourier_space as fs
 from pyfcd.carriers import Carrier
 
-def load_image(path):
-    return io.imread(path, as_gray=True).astype(np.float32)
+
 
 def binarize_image(image):
     """Binarize an image using Otsu's thresholding method."""
     threshold = filters.threshold_otsu(image)
     return image > threshold
 
-def compute_carriers(reference_path, calibration_factor, square_size):
+def compute_carriers(reference, calibration_factor, square_size):
     """
     Compute the carriers for the reference image.
 
@@ -25,7 +24,6 @@ def compute_carriers(reference_path, calibration_factor, square_size):
     Returns:
         tuple: (reference image, carriers list, detected peaks)
     """
-    reference = load_image(reference_path)
     peaks = fs.find_peaks(reference)
     calibration_factor = compute_calibration_factor(peaks, square_size, reference)
     peak_radius = np.linalg.norm(peaks[0] - peaks[1]) / 2
@@ -83,24 +81,36 @@ def compute_displacement_field(phases, carriers):
     u = (carriers[1].frequencies[0] * phases[0] - carriers[0].frequencies[0] * phases[1]) / det_a
     v = (carriers[0].frequencies[1] * phases[1] - carriers[1].frequencies[1] * phases[0]) / det_a
     return np.array([u, v])
+
+def height_from_layers(layers):  # TODO: No sé si hay vidrio por ejemplo entre el agua y la cámara cómo cambia esto.
+    fluid = layers[-2][1]   #son los índices
+    before_camera = layers[-1][1]
+    alpha = 1 - before_camera / fluid
+
+    height = 0
+    for i in range(len(layers)-1):
+        height += effective_height(layers,i)
+
+    return alpha * height
+
+def effective_height(layers,i):
+    return layers[2][1] *((layers[i][0]) / (layers[i][1]))
+
+def compute_height_map(reference, displaced, square_size,layers= None, height=None, unwrap=True):
     
-def compute_height_map(reference_path, displaced_path, square_size, height=1.0, unwrap=True):
-    """
-    Compute the height map from two images.
+    if height is not None:
+        if layers is None:
+            height = height  # altura efectiva ya.
+        else:
+            raise Warning("Provide either height or layers, not both.")
+    else:
+        if layers is None:
+            height = 1
+        else:
+            height = height_from_layers(layers)
+    
+    reference, carriers, peaks, calibration_factor = compute_carriers(reference, None, square_size)
 
-    Parameters:
-        reference_path (str): Path to the reference image.
-        displaced_path (str): Path to the displaced image.
-        square_size (float): Size of the square pattern in meters.
-        height (float): Known reference height for calibration.
-        unwrap (bool): Whether to apply phase unwrapping.
-
-    Returns:
-        HeightMap: Object containing the computed height map.
-    """
-    reference, carriers, peaks, calibration_factor = compute_carriers(reference_path, None, square_size)
-
-    displaced = load_image(displaced_path)
     displaced_fft = fft2(displaced)
 
     phases = compute_phases(displaced_fft, carriers, unwrap)
@@ -109,3 +119,4 @@ def compute_height_map(reference_path, displaced_path, square_size, height=1.0, 
 
     height_map = fs.integrate_in_fourier(*height_gradient, calibration_factor)
     return height_map, phases, calibration_factor
+
