@@ -1,5 +1,4 @@
 import numpy as np
-from skimage import io, filters
 from scipy.fft import fft2, ifft2
 from skimage.restoration import unwrap_phase
 import pyfcd.fourier_space as fs
@@ -89,7 +88,7 @@ def height_from_layers(layers):  # TODO: No sé si hay vidrio por ejemplo entre 
 def effective_height(layers,i):
     return layers[2][1] *((layers[i][0]) / (layers[i][1]))
 
-def compute_height_map(reference, displaced, square_size,layers= None, height=None, unwrap=True):
+def compute_height_map(reference, displaced, square_size,layers= None, height=None, unwrap=True): #dejo height por las simulaciones
     
     if height is not None:
         if layers is None:
@@ -103,13 +102,15 @@ def compute_height_map(reference, displaced, square_size,layers= None, height=No
             height = height_from_layers(layers)
     
     reference, carriers, peaks, calibration_factor = compute_carriers(reference, None, square_size)
-
     displaced_fft = fft2(displaced)
-
     phases = compute_phases(displaced_fft, carriers, unwrap)
     displacement_field = compute_displacement_field(phases, carriers)
     height_gradient = -displacement_field / height
 
+    height_map = fs.integrate_in_fourier(*height_gradient, calibration_factor)
+    return height_map, phases, calibration_factor
+
+    height_gradient = -displacement_field / height
     height_map = fs.integrate_in_fourier(*height_gradient, calibration_factor)
     return height_map, phases, calibration_factor
 
