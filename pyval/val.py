@@ -1,9 +1,9 @@
+import sys
+import os
+sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 import numpy as np
-import matplotlib.pyplot as plt
 from scipy.interpolate import RegularGridInterpolator
 from pyfcd.fcd import compute_height_map
-import matplotlib.cm as cm
-import matplotlib.colors as mcolors
 
 def h_grad(h,x,y,k=0):
     X, Y = np.meshgrid(x, y, indexing='ij')
