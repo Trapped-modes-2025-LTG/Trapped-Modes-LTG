@@ -1,8 +1,10 @@
+import sys
+import os
+sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 from scipy.fft import fft2, ifft2, ifftshift
 import pyfcd.fourier_space as fs
 from skimage.draw import disk
 import numpy as np
-
 
 class Carrier:
     def __init__(self, reference_image, calibration_factor, peak, peak_radius):
