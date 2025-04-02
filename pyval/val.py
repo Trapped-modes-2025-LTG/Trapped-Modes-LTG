@@ -30,6 +30,18 @@ def h_grad(h,x,y,k=0):
     return grad
 
 def val(func,k, N = 500, Lx = np.pi, Ly = np.pi, H = 1, square_size = 1, kx = 20, ky = 20, centrado_si = False, *args, **kwargs):
+    '''
+    Parámetros necesarios:
+        'func': función usada. Necesariamente tiene que ser función de X e Y, con estructura 'func(X,Y,*kwargs*)'
+        'k': integrador a usar. k = 0 pseudoespectral, k = 1 diferencias finitas
+        '**kwargs': parámetros necesarios de 'func', como amplitud, fase, frecuencia, o lo necesario.
+    Parámetros opcionales (llamarlos con otro valor si se quiere modificarlos):
+        'N = 500': Grillado X e Y
+        'Lx = Ly = np.pi': puntos finales de ambas coordenadas
+        'H = 1': altura efectiva del agua. 
+        'kx = ky = 20': frecuencia del patrón I_0
+        'centrado_si = False': Centrar y normalizar los valores devueltos por la FCD
+    '''
     x = np.linspace(0, Lx, N)
     y = np.linspace(0, Ly, N)
     X, Y = np.meshgrid(x, y, indexing='ij')
