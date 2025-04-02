@@ -29,7 +29,7 @@ def h_grad(h,x,y,k=0):
         raise ValueError('Parámetro k entre 0 (pseudoespectral) y 1 (diferencias finitas)')
     return grad
 
-def val(func, N = 500, Lx = np.pi, Ly = np.pi, H = 1, square_size = 1, kx = 20, ky = 20, centrado_si = False,k = 0, *args, **kwargs):
+def val(func,k, N = 500, Lx = np.pi, Ly = np.pi, H = 1, square_size = 1, kx = 20, ky = 20, centrado_si = False, *args, **kwargs):
     x = np.linspace(0, Lx, N)
     y = np.linspace(0, Ly, N)
     X, Y = np.meshgrid(x, y, indexing='ij')
