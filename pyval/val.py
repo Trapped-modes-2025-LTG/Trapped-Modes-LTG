@@ -29,7 +29,7 @@ def h_grad(h,x,y,k=0):
         raise ValueError('Parámetro k entre 0 (pseudoespectral) y 1 (diferencias finitas)')
     return grad
 
-def val(func,k, N = 500, Lx = np.pi, Ly = np.pi, H = 1, square_size = 1, kx = 20, ky = 20, centrado_si = False, *args, **kwargs):
+def val(func,k, N = 1024, Lx = np.pi, Ly = np.pi, H = 1, square_size = 1, kx = 20, ky = 20, centrado_si = False, *args, **kwargs):
     '''
     Parámetros necesarios:
         'func': función usada. Necesariamente tiene que ser función de X e Y, con estructura 'func(X,Y,*kwargs*)'
