@@ -9,12 +9,18 @@ from pyval.val import val
 
 def Asin(X,Y, A=1, w = 3):
     return A*np.sin(w*X)
+def diag_sin(X,Y, A=1, w = 3):
+    return A*np.sin(w*(X+Y))
 #%%
-
-X,Y, h,Ii, values,I0 = val(Asin, k = 0,A = 0.1,kx = 100, ky = 100, centrado_si = True)
-
-plt.imshow(Ii,origin ='lower', extent = [0,np.pi,0,np.pi])
-
+X,Y, h,Ii, values,I0 = val(Asin, k = 0,A = 0.1,kx = 80, ky = 80, centrado_si = False)
+# plt.figure()
+# plt.title('original')
+# plt.imshow(values, origin = 'lower')
+# plt.colorbar()
+# plt.figure()
+# plt.title('FCD')
+# plt.imshow(h, origin = 'lower')
+# plt.colorbar()
 #%%
 alturas = np.linspace(0.01,0.4, 20)
 all_data = []
