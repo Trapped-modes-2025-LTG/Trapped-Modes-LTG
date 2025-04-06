@@ -6,8 +6,9 @@ from scipy.fft import fft2, ifft2
 from skimage.restoration import unwrap_phase
 import pyfcd.fourier_space as fs
 from pyfcd.carriers import Carrier
+import matplotlib.pyplot as plt
 
-def compute_carriers(reference, calibration_factor, square_size):
+def compute_carriers(reference, square_size):
     """
     Compute the carriers for the reference image.
 
@@ -23,7 +24,7 @@ def compute_carriers(reference, calibration_factor, square_size):
     calibration_factor = compute_calibration_factor(peaks, square_size, reference)
     peak_radius = np.linalg.norm(peaks[0] - peaks[1]) / 2
     carriers = [Carrier(reference, calibration_factor, peak, peak_radius) for peak in peaks]
-    return reference, carriers, peaks, calibration_factor
+    return  carriers, peaks, calibration_factor
 
 def compute_calibration_factor(peaks, square_size, reference):
     """
@@ -40,6 +41,18 @@ def compute_calibration_factor(peaks, square_size, reference):
     pixel_frequencies = fs.pixel_to_wavenumber(reference.shape, peaks)
     pixel_wavelength = 2 * np.pi / np.mean(np.abs(pixel_frequencies))
     physical_wavelength = 2 * square_size
+    
+    fig, ax = plt.subplots(figsize=(6, 5))
+    ax.imshow(reference, cmap='gray')
+    ax.set_title(f"Factor de calibración: {physical_wavelength / pixel_wavelength:.2f} dist/px")
+    ax.plot([200,200+pixel_wavelength], [201,201], '.-', label = r'$\lambda$')
+    ax.set_xlabel("X (pix)")
+    ax.set_ylabel("Y (pix)")
+    plt.legend()
+
+    plt.tight_layout()
+    plt.show()
+    
     return physical_wavelength / pixel_wavelength
 
 def compute_phases(displaced_fft, carriers, unwrap=True):
@@ -104,15 +117,11 @@ def compute_height_map(reference, displaced, square_size,layers= None, height=No
         else:
             height = height_from_layers(layers)
     
-    reference, carriers, peaks, calibration_factor = compute_carriers(reference, None, square_size)
+    carriers, peaks, calibration_factor = compute_carriers(reference, square_size)
     displaced_fft = fft2(displaced)
     phases = compute_phases(displaced_fft, carriers, unwrap)
     displacement_field = compute_displacement_field(phases, carriers)
-    height_gradient = -displacement_field / height
-
-    height_map = fs.integrate_in_fourier(*height_gradient, calibration_factor)
-    return height_map, phases, calibration_factor
-
+    
     height_gradient = -displacement_field / height
     height_map = fs.integrate_in_fourier(*height_gradient, calibration_factor)
     return height_map, phases, calibration_factor
