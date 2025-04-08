@@ -11,16 +11,57 @@ def Asin(X,Y, A=1, w = 3):
     return A*np.sin(w*X)
 def diag_sin(X,Y, A=1, w = 3):
     return A*np.sin(w*(X+Y))
+def step(X,a= 0.02,w = 200):
+    x0 = len(X)//2
+    return 1 / (1 + np.exp(-a * (X - x0 + w/2))) * 1 / (1 + np.exp(a * (X - x0 - w/2)))
+def gauss_sin(X,Y, A = 1, w = 0.01):
+    return step(X)*step(Y)*A*np.sin(w*(X+Y))
+
 #%%
-X,Y, h,Ii, values,I0 = val(Asin, k = 0,A = 0.1,kx = 80, ky = 80, centrado_si = False)
-# plt.figure()
-# plt.title('original')
-# plt.imshow(values, origin = 'lower')
-# plt.colorbar()
-# plt.figure()
-# plt.title('FCD')
-# plt.imshow(h, origin = 'lower')
-# plt.colorbar()
+N = 1024
+x = np.linspace(0, N, N)
+y = np.linspace(0, N, N)
+X, Y = np.meshgrid(x, y, indexing='ij')
+Z = gauss_sin(X,Y, A = 0.1)
+fig = plt.figure()
+ax = fig.add_subplot(111, projection='3d')
+surf = ax.plot_surface(X, Y, Z, cmap='magma')  # podés cambiar colormap
+fig.colorbar(surf, ax=ax)
+plt.title('original')
+plt.show()
+
+#%%
+X,Y, h,Ii, values,I0 = val(0, gauss_sin,A = 0.02,kx = 50, ky = 50, centrado_si = False)
+plt.figure()
+
+plt.imshow(values, origin = 'lower')
+plt.colorbar()
+#%%
+X,Y, h,Ii, values2,I0 = val(0,h = values, kx = 50, ky = 50, centrado_si = False)
+Z = values2
+fig = plt.figure()
+ax = fig.add_subplot(111, projection='3d')
+surf = ax.plot_surface(X, Y, Z, cmap='magma')  # podés cambiar colormap
+fig.colorbar(surf, ax=ax)
+plt.title('2Fcd')
+plt.show()
+#%%
+Z = values
+fig = plt.figure()
+ax = fig.add_subplot(111, projection='3d')
+surf = ax.plot_surface(X, Y, Z, cmap='magma')  # podés cambiar colormap
+fig.colorbar(surf, ax=ax)
+plt.title('1fcd')
+plt.show()
+#%%
+X,Y, h,Ii, values3,I0 = val(0,h = values2, kx = 50, ky = 50, centrado_si = False)
+Z = values3
+fig = plt.figure()
+ax = fig.add_subplot(111, projection='3d')
+surf = ax.plot_surface(X, Y, Z, cmap='magma')  # podés cambiar colormap
+fig.colorbar(surf, ax=ax)
+plt.title('3Fcd')
+plt.show()
 #%%
 alturas = np.linspace(0.01,0.4, 20)
 all_data = []
@@ -29,7 +70,7 @@ vmin, vmax = np.inf, -np.inf
 N = 500
 
 for  altura in alturas: 
-    X,Y, h,Ii, values,I0 = val(Asin, k = 0,A = altura,kx = 100, ky = 100, centrado_si = True)
+    X,Y, h,Ii, values,I0 = val(Asin, k = 0,A = altura,kx = 100, ky = 100, centrado_si = False)
     data = values - h.T/np.max(h.T)
     all_data.append(data)
     vmin = min(vmin, np.min(data))
