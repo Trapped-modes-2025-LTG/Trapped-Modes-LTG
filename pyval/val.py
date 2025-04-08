@@ -53,9 +53,9 @@ def val(k,func = None,h = None, N = 1024,  H = 1, square_size = 1, kx = 20, ky =
     r_prim = (r - u)  
     r_prim[..., 0] = np.clip(r_prim[..., 0], x.min(), x.max())
     r_prim[..., 1] = np.clip(r_prim[..., 1], y.min(), y.max())
-
-    interp_I0 = RegularGridInterpolator((x, y), I0, bounds_error=False, fill_value=0)
-    I = interp_I0(r_prim.reshape(-1, 2)).reshape(N, N) 
+    # interp_I0 = RegularGridInterpolator((x, y), I0, bounds_error=False, fill_value=0)
+    # I = interp_I0(r_prim.reshape(-1, 2)).reshape(N, N) 
+    I = 0.5 + (np.cos(r_prim[..., 0] * kx) + np.cos(r_prim[..., 1] * ky)) / 4.0     #interpolo directamente evaluando en el patron 
     values = compute_height_map(I0, I, square_size=square_size, height=H)[0]     #tuple = (height_map, phases, calibration_factor)
     
     if centrado_si == True:
