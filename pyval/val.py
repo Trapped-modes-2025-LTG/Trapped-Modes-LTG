@@ -1,6 +1,3 @@
-import sys
-import os
-sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 import numpy as np
 from scipy.interpolate import RegularGridInterpolator
 from pyfcd.fcd import compute_height_map
@@ -10,6 +7,7 @@ def h_grad(h,x,y,k=0):
     X, Y = np.meshgrid(x, y, indexing='ij')    
     if k == 0:
         kx, ky = wavenumber_meshgrid(h.shape)
+        h = h-np.mean(h)
         h_hat = np.fft.fft2(h)
         h_x_hat = 1j * kx * h_hat
         h_y_hat = 1j * ky * h_hat
