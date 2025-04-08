@@ -48,7 +48,7 @@ def val(k,func = None,h = None, N = 1024,  H = 1, square_size = 1, kx = 20, ky =
         else: 
             h = h
     u = -H*h_grad(h,x,y,k=k)
-    I0 = np.sin(kx * X) * np.sin(ky * Y)
+    I0 = 0.5 + (np.cos(x *kx) + np.cos(y * ky)) / 4.0
     r = np.stack((X, Y), axis=-1)
     r_prim = (r - u)  
     r_prim[..., 0] = np.clip(r_prim[..., 0], x.min(), x.max())
