@@ -63,13 +63,13 @@ def val(k,func = None,h = None, N = 1024,  H = 1, square_size = 1, nx = 20, ny =
     # interp_I0 = RegularGridInterpolator((x, y), I0, bounds_error=False, fill_value=0)
     # I = interp_I0(r_prim.reshape(-1, 2)).reshape(N, N) 
     I = 0.5 + (np.cos(r_prim[..., 0] * kx) + np.cos(r_prim[..., 1] * ky)) / 4.0     #interpolo directamente evaluando en el patron
-    values = compute_height_map(I0, I, square_size=square_size, height=H)[0]     #tuple = (height_map, phases, calibration_factor)
-    
+    values = compute_height_map(I0, I, square_size=square_size, height=H)    #tuple = (height_map, phases, calibration_factor)
+    calibration_factor = values[2]
     if centrado_si == True:
-        values = centrado(values)
+        values[0] = centrado(values[0])
     else:
         pass
-    return X,Y,h, I, values, I0
+    return X,Y,h, I, values[0], I0, calibration_factor
 
 def centrado(v):
     meanh = (np.max(v) + np.min(v))*0.5
