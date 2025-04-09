@@ -102,7 +102,7 @@ def integrate_in_fourier(gradient_x, gradient_y, calibration_factor=1):  # TODO:
     nx, ny = gradient_x.shape
     X,Y = np.meshgrid(np.arange(nx), np.arange(ny), indexing='ij')
     f = f+X*x_mean+Y*y_mean
-    return np.real(ifft2(integrated_hat))
+    return f
 
 
 def find_peak_locations(image, threshold, no_peaks):
@@ -164,6 +164,12 @@ def find_peaks(image):
 
     image_fft *= highpass_mask()
     threshold = 0.5 * np.max(image_fft)
+
+    peak_locations = find_peak_locations(image_fft, threshold, 4)
+    rightmost_peak = min(peak_locations, key=angles)
+    perpendicular_peak = min(peak_locations, key=dependendancy)
+
+    return rightmost_peak, perpendicular_peak
 
     peak_locations = find_peak_locations(image_fft, threshold, 4)
     rightmost_peak = min(peak_locations, key=angles)
