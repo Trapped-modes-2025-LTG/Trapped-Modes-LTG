@@ -16,13 +16,23 @@ def step(X,a= 0.02,w = 200):
     return 1 / (1 + np.exp(-a * (X - x0 + w/2))) * 1 / (1 + np.exp(a * (X - x0 - w/2)))
 def gauss_sin(X,Y, A = 1, w = 0.01):
     return step(X)*step(Y)*A*np.sin(w*(X+Y))
-
+def gauss(X,Y,A = 1, sigma=1024/10, m = 4):
+    N = np.max(X)
+    return (A*np.exp(-(X-(N//2))**2/(2*sigma**2))*np.exp(-(Y-(N//2))**2/(2*sigma**2))*np.cos(X*m*2*np.pi/N))
 #%%
+X,Y, h,Ii, values,I0, calibration_factor = val(0, func = gauss,nx = 50, ny = 50, centrado_si = False)
+plt.figure()
+plt.imshow(h,origin = 'lower')
+plt.figure()
+plt.imshow(values, origin = 'lower')
+plt.colorbar()
+#%%
+
 N = 1024
 x = np.linspace(0, N, N)
 y = np.linspace(0, N, N)
 X, Y = np.meshgrid(x, y, indexing='ij')
-Z = gauss_sin(X,Y, A = 0.1)
+Z = gauss(X,Y)
 fig = plt.figure()
 ax = fig.add_subplot(111, projection='3d')
 surf = ax.plot_surface(X, Y, Z, cmap='magma')  # podés cambiar colormap
@@ -31,13 +41,13 @@ plt.title('original')
 plt.show()
 
 #%%
-X,Y, h,Ii, values,I0 = val(0, gauss_sin,A = 0.02,kx = 50, ky = 50, centrado_si = False)
+X,Y, h,Ii, values,I0, calibration_factor = val(0, func = gauss_sin,A = 100,nx = 20, ny = 20, centrado_si = False)
 plt.figure()
 
-plt.imshow(values, origin = 'lower')
+plt.imshow(values/calibration_factor, origin = 'lower')
 plt.colorbar()
 #%%
-X,Y, h,Ii, values2,I0 = val(0,h = values, kx = 50, ky = 50, centrado_si = False)
+X,Y, h,Ii, values2,I0 = val(0,h = values, nx = 50, ny = 50, centrado_si = False)
 Z = values2
 fig = plt.figure()
 ax = fig.add_subplot(111, projection='3d')
@@ -128,6 +138,10 @@ cbar = fig.colorbar(sm, ax=ax)
 cbar.set_label("Frecuencia patrón")
 
 ax.set_xlabel("x")
+ax.set_ylabel("Resta alturas")
+ax.set_title("Cortes en la fila central para \n diferentes frecuencias y A = 0.1")
+ax.grid(linestyle = '--', alpha = 0.5)
+plt.savefig('sim_sin_difk.pdf', bbox_inches = 'tight')
 ax.set_ylabel("Resta alturas")
 ax.set_title("Cortes en la fila central para \n diferentes frecuencias y A = 0.1")
 ax.grid(linestyle = '--', alpha = 0.5)
