@@ -6,7 +6,7 @@ from scipy.fft import fft2, ifft2
 from skimage.restoration import unwrap_phase
 import pyfcd.fourier_space as fs
 from pyfcd.carriers import Carrier
-import matplotlib.pyplot as plt
+#import matplotlib.pyplot as plt
 
 def compute_carriers(reference, square_size):
     """
@@ -42,16 +42,16 @@ def compute_calibration_factor(peaks, square_size, reference):
     pixel_wavelength = 2 * np.pi / np.mean(np.abs(pixel_frequencies))
     physical_wavelength = 2 * square_size
     
-    fig, ax = plt.subplots(figsize=(6, 5))
-    ax.imshow(reference, cmap='gray')
-    ax.set_title(f"Factor de calibración: {physical_wavelength / pixel_wavelength:.2f} dist/px")
-    ax.plot([200,200+pixel_wavelength], [201,201], '.-', label = r'$\lambda$')
-    ax.set_xlabel("X (pix)")
-    ax.set_ylabel("Y (pix)")
-    plt.legend()
+    # fig, ax = plt.subplots(figsize=(6, 5))
+    # ax.imshow(reference, cmap='gray')
+    # ax.set_title(f"Factor de calibración: {physical_wavelength / pixel_wavelength:.2f} dist/px")
+    # ax.plot([200,200+pixel_wavelength], [201,201], '.-', label = r'$\lambda$')
+    # ax.set_xlabel("X (pix)")
+    # ax.set_ylabel("Y (pix)")
+    # plt.legend()
 
-    plt.tight_layout()
-    plt.show()
+    # plt.tight_layout()
+    # plt.show()
     
     return physical_wavelength / pixel_wavelength
 
@@ -124,5 +124,5 @@ def compute_height_map(reference, displaced, square_size,layers= None, height=No
     
     height_gradient = -displacement_field / height
     height_map = fs.integrate_in_fourier(*height_gradient, calibration_factor)
-    return height_map, phases, calibration_factor
+    return height_map, phases, calibration_factor 
 
