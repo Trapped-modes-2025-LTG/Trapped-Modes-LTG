@@ -1,9 +1,3 @@
-import sys
-import os
-sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
-import numpy as np
-from scipy.fft import fft2, ifft2
-from skimage.restoration import unwrap_phase
 import pyfcd.fourier_space as fs
 from pyfcd.carriers import Carrier
 #import matplotlib.pyplot as plt
@@ -124,5 +118,5 @@ def compute_height_map(reference, displaced, square_size,layers= None, height=No
     
     height_gradient = -displacement_field / height
     height_map = fs.integrate_in_fourier(*height_gradient, calibration_factor)
-    return height_map, phases, calibration_factor 
+    return height_map, phases, calibration_factor
 
