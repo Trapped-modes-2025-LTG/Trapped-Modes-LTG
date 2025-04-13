@@ -3,14 +3,13 @@ from skimage.measure import regionprops, label
 import numpy as np
 
 def wavenumber(size, calibration_factor=1, shifted=False):
+ 
     """
-    Compute the wavenumber (spatial frequency) vector.
-    
+    Compute the wavenumber (spatial frequency) vector. 
     Parameters:
         size (int): Length of the frequency vector
         calibration_factor (float): Scaling factor for frequency units (default=1)
         shifted (bool): Whether to center the frequencies (fftshift) (default=False)
-    
     Returns:
         np.ndarray: 1D array of wavenumbers
     """
@@ -87,9 +86,7 @@ def integrate_in_fourier(gradient_x, gradient_y, calibration_factor=1):  # TODO:
     Returns:
         np.ndarray: Reconstructed scalar field
     """    
-    x_mean = np.mean(gradient_x)
-    y_mean = np.mean(gradient_y)
-    kx, ky = wavenumber_meshgrid(gradient_x.shape, calibration_factor)  # TODO: Precalcular esto en FCD() con referencia.
+    ky, kx = wavenumber_meshgrid(gradient_x.shape, calibration_factor)  # TODO: Precalcular esto en FCD() con referencia.
     k2 = kx ** 2 + ky ** 2
     k2[0, 0] = 1
 
@@ -97,12 +94,7 @@ def integrate_in_fourier(gradient_x, gradient_y, calibration_factor=1):  # TODO:
 
     gradient_x_hat, gradient_y_hat = fft2(gradient_x), fft2(gradient_y)
     integrated_hat = (-1.0j * kx * gradient_x_hat + -1.0j * ky * gradient_y_hat) / k2
-    
-    f = np.real(ifft2(integrated_hat))
-    nx, ny = gradient_x.shape
-    X,Y = np.meshgrid(np.arange(nx), np.arange(ny), indexing='ij')
-    f = f+X*x_mean+Y*y_mean
-    
+
     return np.real(ifft2(integrated_hat))
 
 
