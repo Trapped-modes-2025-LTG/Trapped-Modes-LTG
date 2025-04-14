@@ -23,8 +23,6 @@ def gauss(X,Y,A = 100, sigma=1024/6):
     
 X,Y, h,Ii, values,I0, calibration_factor = val(0, func = gauss_sin, centrado_si = False)
 
-#ejemplo con una de las funciones
-
 fig, ax = plt.subplots(1,3, figsize = (10,4))
 
 im0 = ax[0].imshow(Ii, origin='lower')
