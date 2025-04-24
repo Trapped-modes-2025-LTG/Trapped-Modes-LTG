@@ -15,8 +15,8 @@ reference_image = load_image(reference_path)
 
 displaced_dir = os.path.join(base_dir, '/')                  #Complete with your dispaced dir
 
-layers = [[1.0e-2, 1.48899], [2.4e-2, 1.34], [80e-2, 1.0003]]
-square_size = 0.0022
+layers = []                                                  #Complete with your layers
+square_size = None                                           #Complete with your λ/2 
 
 output_dir = os.path.join(displaced_dir, 'maps')
 os.makedirs(output_dir, exist_ok=True)
@@ -81,8 +81,8 @@ def update(i):
     ax.clear()
     cont = ax.contourf(x_mesh * 1e3, y_mesh * 1e3, df['data'].iloc[i] * 1e3, 100,cmap='magma', vmin=min_val * 1e3, vmax=max_val * 1e3)
     ax.set_title(f'Frame {i}')
-    ax.set_xlabel('Posición x [mm]')
-    ax.set_ylabel('Posición y [mm]')
+    ax.set_xlabel('x [mm]')
+    ax.set_ylabel('y [mm]')
     ax.set_aspect("equal")
     print(f'{i}/{len(df)}')
     return cont.collections
