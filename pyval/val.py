@@ -55,7 +55,7 @@ def val(k,func = None,h = None, N = 1024,  H = 1, n = 60, centrado_si = False, *
     
     kx = 2 * np.pi * n / N
     ky = 2 * np.pi * n / N
-    I0 = 0.5 + (np.sin(X *kx) + np.sin(Y * ky))/4
+    I0 = 0.5 + (np.sin(X *kx) * np.sin(Y * ky))/2
     r = np.stack((X, Y), axis=-1)
     r_prim = (r - u)  
     r_prim[..., 0] = np.clip(r_prim[..., 0], x.min(), x.max())
