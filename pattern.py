@@ -4,7 +4,7 @@ cm_i = 2.54                     # cm per inch
 
 N = 4096                        # pixels 
 l = 44                          # total lenght in cm
-mm = 2                          # square lenght
+mm = 2                          # square lenght in mm
 n = l*10/mm                     # squares per lenght
 dpi = N * cm_i / l 
 
