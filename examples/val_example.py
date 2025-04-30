@@ -10,10 +10,7 @@ def step(X,a= 0.02,w = 400):
     return 1 / (1 + np.exp(-a * (X - x0 + w/2))) * 1 / (1 + np.exp(a * (X - x0 - w/2)))
 def gauss_sin(X,Y, A = 100, w = 0.05):
     return step(X)*step(Y)*A*np.sin(w*(X+Y))
-def gauss(X,Y,A = 100, sigma=1024/6):
-    N = np.max(X)
-    return (A*np.exp(-(X-(N//2))**2/(2*sigma**2))*np.exp(-(Y-(N//2))**2/(2*sigma**2)))
-
+    
 # elegir la función deseada, y si se quiere cambiar los parámetros:
     # el integrador (k = 0 o k = 1)
     # la frecuencia de puntos N
@@ -36,4 +33,3 @@ ax[1].set_title('Mapa devuelto por la FCD')
 im2 = ax[2].imshow(values-h, origin='lower')
 cbar = fig.colorbar(im2, ax=ax[2], orientation='horizontal')
 ax[2].set_title(r'Resta de alturas: <' + f'{np.max(np.abs(values-h))*100/(np.max(np.abs(values))):.2f}%')
-
