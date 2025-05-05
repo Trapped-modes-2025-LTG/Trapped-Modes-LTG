@@ -2,9 +2,11 @@ import numpy as np
 import matplotlib.pyplot as plt
 import scipy.special as sp
 from scipy.integrate import quad
+from matplotlib.colors import Normalize
+
 
 a = 100 # radio del círculo de fuentes
-c = 2.4048 # posición radial [2.4048, 5.5201, 8.6537, 11.7915, 14.9309]
+c =  2.4048 # posición radial [2.4048, 5.5201, 8.6537, 11.7915, 14.9309]
 
 def En(n, z):
     if n <= 0:
@@ -43,6 +45,11 @@ def psi2(r, y):
     M = lambda r, y: r * np.exp(-y) * sp.jv(0, c) * sp.hankel1(1, r)
     return -4 * np.pi ** 2 * 1j * c * M(r, y) + 8 * c * r * integral2(r, y) + L(np.abs(r - c), y, a) / (2 * np.sqrt(r * c))
 
+#%%
+'''
+Para un psi que NO evoluciona en el tiempo
+'''
+
 def psi(r, y):
     sol = np.zeros(np.shape(r), dtype=complex)
     for i in range(len(r[:, 0])):
@@ -57,7 +64,55 @@ plt.gca().set_aspect('equal')
 plt.gca().invert_yaxis()
 cs = plt.contour(R, Y, np.real(psi(R,Y)), levels = [20, 16, 12, 8, 4][::-1])
 
+#%%
+'''
+Ahora para un psi que evoluciona en el tiempo con w 
+'''
+
+g = 9.81
+a = 100
+c = 2.4048
+w = np.sqrt(g*c)
 
 
+def psi(r, y):
+    sol = np.zeros(np.shape(r), dtype=complex)
+    for i in range(len(r[:, 0])):
+        for j in range(len(r[0, :])):
+            sol[i, j] = psi1(r[i, j], y[i, j]) if (r[i, j] < c) else psi2(r[i, j], y[i, j])
+    return sol
 
+# Crear malla
+r = np.linspace(0.01, 10, 100)
+y = np.linspace(-1, 5, 100)
+R, Y = np.meshgrid(r, y)
 
+# Calcular psi espacial una vez
+psi_base = psi(R, Y)
+
+# Crear tiempos y lista para guardar contornos
+times = np.linspace(0, 3, 32)
+contornos = []
+
+# Crear figura
+fig, ax = plt.subplots()
+ax.set_aspect('equal')
+ax.invert_yaxis()
+
+colors = plt.cm.viridis(np.linspace(0, 1, len(times)))  # color para cada tiempo
+
+for i, t in enumerate(times):
+    psi_t = np.real(psi_base * np.exp(1j * w * t))
+    cs = ax.contour(R, Y, psi_t, levels=[8], colors=[colors[i]])
+    contornos.append(cs)
+
+sm = plt.cm.ScalarMappable(cmap='viridis', norm=Normalize(vmin=times[0], vmax=times[-1]))
+sm.set_array([])
+cbar = fig.colorbar(sm, ax=ax, label='Tiempo')
+ax.set_title("Evolución temporal de la \n línea de corriente (nivel = 8)" )
+
+plt.xlabel("r")
+plt.xlim(0, 6)
+plt.ylim(3, -1)
+plt.ylabel("y")
+plt.show()
