@@ -5,8 +5,8 @@ from scipy.integrate import quad
 from matplotlib.colors import Normalize
 
 
-a = 100 # radio del círculo de fuentes
-c =  2.4048 # posición radial [2.4048, 5.5201, 8.6537, 11.7915, 14.9309]
+a = 100 # integral limit for aproximation
+c =  2.4048 # zero of Bessel's funtion J_0 [2.4048, 5.5201, 8.6537, 11.7915, 14.9309]
 
 def En(n, z):
     if n <= 0:
@@ -47,7 +47,7 @@ def psi2(r, y):
 
 #%%
 '''
-Para un psi que NO evoluciona en el tiempo
+First for a psi that doesn´t evolve in time
 '''
 
 def psi(r, y):
@@ -66,7 +66,7 @@ cs = plt.contour(R, Y, np.real(psi(R,Y)), levels = [20, 16, 12, 8, 4][::-1])
 
 #%%
 '''
-Ahora para un psi que evoluciona en el tiempo con w 
+Now for a psi that evolves in time with frequency w
 '''
 
 g = 9.81
@@ -82,24 +82,21 @@ def psi(r, y):
             sol[i, j] = psi1(r[i, j], y[i, j]) if (r[i, j] < c) else psi2(r[i, j], y[i, j])
     return sol
 
-# Crear malla
+# create a meshgrid as input for the funtion psi
 r = np.linspace(0.01, 10, 100)
 y = np.linspace(-1, 5, 100)
 R, Y = np.meshgrid(r, y)
 
-# Calcular psi espacial una vez
 psi_base = psi(R, Y)
 
-# Crear tiempos y lista para guardar contornos
 times = np.linspace(0, 3, 32)
 contornos = []
 
-# Crear figura
 fig, ax = plt.subplots()
 ax.set_aspect('equal')
 ax.invert_yaxis()
 
-colors = plt.cm.viridis(np.linspace(0, 1, len(times)))  # color para cada tiempo
+colors = plt.cm.viridis(np.linspace(0, 1, len(times)))  # color related to each time
 
 for i, t in enumerate(times):
     psi_t = np.real(psi_base * np.exp(1j * w * t))
