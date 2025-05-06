@@ -4,27 +4,33 @@ from them. The two parts are separated into cells and are just an example of wha
 
 For the first part, it is necessary to have a folder containing a reference image and several displaced images
 of the pattern. The reference image should show the pattern with the free surface at rest. All images must be in
-".tif" format. A folder named `maps` is created inside the original folder to store the analyzed arrays.
+".tif" format. A folder named "maps" is created inside the original folder to store the analyzed arrays.
 
-A `for` loop is used to analyze each image (previously binarized with "load_image(path)") using the main function
+A "for" loop is used to analyze each image (previously binarized with "load_image(path)") using the main function
 from this repository: "compute_height_map" from "fcd.py". This function takes the reference and displaced images,
 the square size of the pattern, and the list of layers for the effective height as inputs. The last two are physical
-parameters of the setup. "square_size" corresponds to half the wavelength (λ/2), and `layers` describes the sequence
+parameters of the setup. "square_size" corresponds to half the wavelength (λ/2), and "layers" describes the sequence
 of materials, as format "[[reflection_index1, height1], [...],...]" from the pattern to the camera.
 
 The resulting height maps are saved as ".npy" files in the "maps" folder, along with a file named
 "calibration_factor.npy", which contains the pixel-to-meter conversion factor.
 
-Better methods to replace the `for` loop were not explored. Optimizing this could help reduce computation time.
+Better methods to replace the "for" loop were not explored. Optimizing this could help reduce computation time.
 
-In the second part of the script, the easiest way to create a video from the previous 'maps' folder was developed.
-The '.npy' files 
+In the second part of the script, the easiest way to create a video from the previous "maps" folder was developed.
+The ".npy" files 
 
 ---
 
-In the second part of the script, a simple way to create a video from the `maps` folder is shown. The `.npy` files
-are loaded, and a `matplotlib` animation is generated using contour plots to visualize the height evolution.
+In the second part of the script, a simple way to create a video from the "maps" folder is shown. The ".npy" files
+are loaded, and a "matplotlib" animation is generated using contour plots to visualize the height evolution.
 
+---
+Usage:
+1. Place a reference image (at rest) and all displaced ".tif" images in a folder.
+2. Update the variables "reference_path", "displaced_dir", "layers", and "square_size".
+3. Run the first section to compute and save height maps in "maps/".
+4. Run the second section to create a video from the maps.
 '''
 
 
