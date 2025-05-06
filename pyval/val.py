@@ -74,8 +74,8 @@ def val(k,func = None,h = None, N = 1024,  H = 1, n = 60, centrado_si = False, *
 
     interp_I0 = RegularGridInterpolator((x, y), I0, bounds_error=False, fill_value=0)
     I = interp_I0(r_prim.reshape(-1, 2)).reshape(N, N) 
-    #I = 0.5 + (np.cos(r_prim[..., 0] * kx) * np.cos(r_prim[..., 1] * ky)) / 2    #interpolo directamente evaluando en el patron
-    values = compute_height_map(I0, I, square_size=square_size, height=H)    #tuple = (height_map, phases, calibration_factor)
+    #I = 0.5 + (np.cos(r_prim[..., 0] * kx) * np.cos(r_prim[..., 1] * ky)) / 2    # Direct interpolate if the pattern is known
+    values = compute_height_map(I0, I, square_size=square_size, height=H)    # Return: tuple = (height_map, phases, calibration_factor)
     calibration_factor = values[2]
     if centrado_si == True:
         values[0] = centrado(values[0])
@@ -84,9 +84,6 @@ def val(k,func = None,h = None, N = 1024,  H = 1, n = 60, centrado_si = False, *
     return X,Y,h, I, values[0], I0, calibration_factor
 
 def h_grad(h,x,y,k=0):  
-    '''
-    Integrator to use.
-    '''
     if k == 0:
         kx, ky = wavenumber_meshgrid(h.shape)
         h = h-np.mean(h)
