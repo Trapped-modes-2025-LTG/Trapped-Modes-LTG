@@ -1,3 +1,33 @@
+'''
+This script shows how to save the analyzed photos as ".npy" files in a dedicated folder, and how to create a video
+from them. The two parts are separated into cells and are just an example of what we used.
+
+For the first part, it is necessary to have a folder containing a reference image and several displaced images
+of the pattern. The reference image should show the pattern with the free surface at rest. All images must be in
+".tif" format. A folder named `maps` is created inside the original folder to store the analyzed arrays.
+
+A `for` loop is used to analyze each image (previously binarized with "load_image(path)") using the main function
+from this repository: "compute_height_map" from "fcd.py". This function takes the reference and displaced images,
+the square size of the pattern, and the list of layers for the effective height as inputs. The last two are physical
+parameters of the setup. "square_size" corresponds to half the wavelength (λ/2), and `layers` describes the sequence
+of materials, as format "[[reflection_index1, height1], [...],...]" from the pattern to the camera.
+
+The resulting height maps are saved as ".npy" files in the "maps" folder, along with a file named
+"calibration_factor.npy", which contains the pixel-to-meter conversion factor.
+
+Better methods to replace the `for` loop were not explored. Optimizing this could help reduce computation time.
+
+In the second part of the script, the easiest way to create a video from the previous 'maps' folder was developed.
+The '.npy' files 
+
+---
+
+In the second part of the script, a simple way to create a video from the `maps` folder is shown. The `.npy` files
+are loaded, and a `matplotlib` animation is generated using contour plots to visualize the height evolution.
+
+'''
+
+
 import os
 import sys
 import numpy as np
@@ -24,7 +54,7 @@ os.makedirs(output_dir, exist_ok=True)
 calibration_saved = False
 
 for i, fname in enumerate(sorted(os.listdir(displaced_dir)), start=1):
-    if fname.endswith('.tif') and 'referencia' not in fname:
+    if fname.endswith('.tif') and 'reference' not in fname:
         displaced_path = os.path.join(displaced_dir, fname)
         displaced_image = load_image(displaced_path)
 
@@ -68,7 +98,6 @@ x = np.linspace(0, n_cols, n_cols) * calibration_factor
 y = np.linspace(0, n_rows, n_rows) * calibration_factor
 x_mesh, y_mesh = np.meshgrid(x, y)
 
-# Fig settings
 fig, ax = plt.subplots()
 im = ax.contourf(x_mesh * 1e3, y_mesh * 1e3, height_map * 1e3, 100,cmap='magma', vmin=min_val * 1e3, vmax=max_val * 1e3)
 cbar = fig.colorbar(im, ax=ax)
