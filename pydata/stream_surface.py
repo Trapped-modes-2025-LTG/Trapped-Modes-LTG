@@ -60,6 +60,7 @@ Z = np.real(psi)
 plt.gca().set_aspect('equal')
 plt.gca().invert_yaxis()
 cs = plt.contour(R, Y, Z, levels = [20, 16, 12, 8, 4][::-1])
+plt.grid(linestyle = '--', alpha = 0.5)
 
 #%%
 '''
@@ -92,4 +93,5 @@ plt.xlabel("r")
 plt.xlim(0, 6)
 plt.ylim(3, -1)
 plt.ylabel("y")
+plt.grid(linestyle = '--', alpha = 0.5)
 plt.show()
