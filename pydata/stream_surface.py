@@ -45,53 +45,53 @@ class PsiSolver:
                 sol[i, j] = self.psi_n(1, r[i, j], y[i, j]) if (r[i, j] < self.selected_c) else self.psi_n(2, r[i, j], y[i, j])
         return sol
 
-#%%
-'''
-First for a psi that doesn´t evolve in time
-'''
-solver = PsiSolver(a=100, c_index=0)
-r = np.linspace(0.01, 10, 100)
-y = np.linspace(-1, 5, 100)
-R, Y = np.meshgrid(r, y)
-
-psi = solver.psi(R, Y)
-Z = np.real(psi)
-
-plt.gca().set_aspect('equal')
-plt.gca().invert_yaxis()
-cs = plt.contour(R, Y, Z, levels = [20, 16, 12, 8, 4][::-1])
-plt.grid(linestyle = '--', alpha = 0.5)
-
-#%%
-'''
-Now for a psi that evolves in time with trapped mode's frequency w 
-'''
-
-g = 9.81
-w = np.sqrt(g*solver.selected_c)
-
-times = np.linspace(0, 3, 32)
-contornos = []
-
-fig, ax = plt.subplots()
-ax.set_aspect('equal')
-ax.invert_yaxis()
-
-colors = plt.cm.viridis(np.linspace(0, 1, len(times)))  # color related to each time
-
-for i, t in enumerate(times):
-    psi_t = np.real(psi * np.exp(1j * w * t))
-    cs = ax.contour(R, Y, psi_t, levels=[8], colors=[colors[i]])
-    contornos.append(cs)
-
-sm = plt.cm.ScalarMappable(cmap='viridis', norm=Normalize(vmin=times[0], vmax=times[-1]))
-sm.set_array([])
-cbar = fig.colorbar(sm, ax=ax, label='Tiempo')
-ax.set_title("Evolución temporal de la \n línea de corriente (nivel = 8)" )
-
-plt.xlabel("r")
-plt.xlim(0, 6)
-plt.ylim(3, -1)
-plt.ylabel("y")
-plt.grid(linestyle = '--', alpha = 0.5)
-plt.show()
+if __name__ == "__main__":
+    '''
+    First for a psi that doesn´t evolve in time
+    '''
+    solver = PsiSolver(a=100, c_index=0)
+    r = np.linspace(0.01, 10, 100)
+    y = np.linspace(-1, 5, 100)
+    R, Y = np.meshgrid(r, y)
+    
+    psi = solver.psi(R, Y)
+    Z = np.real(psi)
+    
+    plt.figure()
+    plt.gca().set_aspect('equal')
+    plt.gca().invert_yaxis()
+    cs = plt.contour(R, Y, Z, levels = [20, 16, 12, 8, 4][::-1])
+    plt.grid(linestyle = '--', alpha = 0.5)
+    
+    '''
+    Now for a psi that evolves in time with trapped mode's frequency w 
+    '''
+    
+    g = 9.81
+    w = np.sqrt(g*solver.selected_c)
+    
+    times = np.linspace(0, 3, 32)
+    contornos = []
+    
+    fig, ax = plt.subplots()
+    ax.set_aspect('equal')
+    ax.invert_yaxis()
+    
+    colors = plt.cm.viridis(np.linspace(0, 1, len(times)))  # color related to each time
+    
+    for i, t in enumerate(times):
+        psi_t = np.real(psi * np.exp(1j * w * t))
+        cs = ax.contour(R, Y, psi_t, levels=[8], colors=[colors[i]])
+        contornos.append(cs)
+    
+    sm = plt.cm.ScalarMappable(cmap='viridis', norm=Normalize(vmin=times[0], vmax=times[-1]))
+    sm.set_array([])
+    cbar = fig.colorbar(sm, ax=ax, label='Tiempo')
+    ax.set_title("Evolución temporal de la \n línea de corriente (nivel = 8)" )
+    
+    plt.xlabel("r")
+    plt.xlim(0, 6)
+    plt.ylim(3, -1)
+    plt.ylabel("y")
+    plt.grid(linestyle = '--', alpha = 0.5)
+    plt.show()
