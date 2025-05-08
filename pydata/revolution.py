@@ -30,16 +30,28 @@ X = 1 * R_cont * np.cos(Theta)
 Y = R_cont * np.sin(Theta)
 Z3D = Y_cont  
 
+r_ring = 9
+z_ring = 0
+theta = np.linspace(0, 2 * np.pi, 200)
+x_ring = r_ring * np.cos(theta)
+y_ring = r_ring * np.sin(theta)
+z_ring_array = np.full_like(theta, z_ring)
+
+
+
+
 fig = plt.figure(figsize=(8, 6))
 ax = fig.add_subplot(111, projection='3d')
 ax.plot_surface(X, Y, Z3D, cmap='viridis', edgecolor='none')
-#ax.plot_surface(X,Y,np.zeros_like(X))
+ax.plot3D(x_ring, y_ring, z_ring_array, 'r', linewidth=2, label="Anillo r=9, z=0")
 ax.set_xlabel("x")
 ax.set_ylabel("y")
 ax.set_zlabel("z")
 # ax.set_xlim(4,-4)
 # ax.set_ylim(4,-4)
 ax.set_zlim(8,-8)
+
+#plt.savefig("superficie_3d_c2.pdf")
 
 #%%
 def export_two_surfaces_to_obj(X1, Y1, Z1, X2, Y2, Z2, filename):
@@ -83,6 +95,6 @@ def export_two_surfaces_to_obj(X1, Y1, Z1, X2, Y2, Z2, filename):
 Z_plane = np.zeros_like(Z3D)
 
 # Exportar
-obj_path = os.path.join(base_dir, "surface_and_plane.obj")
+obj_path = os.path.join(base_dir, "surface_and_ring.obj")
 export_two_surfaces_to_obj(X, Y, Z3D, X, Y, Z_plane, obj_path)
 print(f"Exportado a {obj_path}")
