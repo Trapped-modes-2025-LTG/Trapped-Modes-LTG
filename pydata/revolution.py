@@ -7,7 +7,7 @@ from skimage import measure
 
 base_dir = os.path.dirname(__file__)
 sys.path.append(base_dir)
-file_path = os.path.join(base_dir, 'surfaces', "level16_200px.npy")
+file_path = os.path.join(base_dir, 'surfaces', "level16_100px_c2_dot.npy")
 
 Z = np.load(file_path)
 level = 16
@@ -26,7 +26,7 @@ theta = np.linspace(0, 2 * np.pi, 200)
 Theta, R_cont = np.meshgrid(theta, r_contour)
 _,     Y_cont = np.meshgrid(theta, y_contour)
 
-X = 1.2 * R_cont * np.cos(Theta)
+X = 1 * R_cont * np.cos(Theta)
 Y = R_cont * np.sin(Theta)
 Z3D = Y_cont  
 
@@ -37,6 +37,6 @@ ax.plot_surface(X, Y, Z3D, cmap='viridis', edgecolor='none')
 ax.set_xlabel("x")
 ax.set_ylabel("y")
 ax.set_zlabel("z")
-ax.set_xlim(4,-4)
-ax.set_ylim(4,-4)
-ax.set_zlim(3,-3)
+# ax.set_xlim(4,-4)
+# ax.set_ylim(4,-4)
+ax.set_zlim(1,-1)
