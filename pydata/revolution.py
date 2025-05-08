@@ -54,47 +54,37 @@ ax.set_zlim(8,-8)
 #plt.savefig("superficie_3d_c2.pdf")
 
 #%%
-def export_two_surfaces_to_obj(X1, Y1, Z1, X2, Y2, Z2, filename):
-    """
-    Exporta dos superficies al mismo archivo .obj.
-    """
-    nrows1, ncols1 = X1.shape
-    nrows2, ncols2 = X2.shape
+def export_surface_and_ring_to_obj(X, Y, Z, x_ring, y_ring, z_ring, filename):
+    nrows, ncols = X.shape
     
     with open(filename, 'w') as f:
-        # --- VÉRTICES superficie 1 ---
-        for i in range(nrows1):
-            for j in range(ncols1):
-                f.write(f"v {X1[i, j]} {Y1[i, j]} {Z1[i, j]}\n")
+        # --- VÉRTICES superficie ---
+        for i in range(nrows):
+            for j in range(ncols):
+                f.write(f"v {X[i, j]} {Y[i, j]} {Z[i, j]}\n")
         
-        # --- VÉRTICES superficie 2 ---
-        for i in range(nrows2):
-            for j in range(ncols2):
-                f.write(f"v {X2[i, j]} {Y2[i, j]} {Z2[i, j]}\n")
-
-        # --- CARAS superficie 1 ---
-        for i in range(nrows1 - 1):
-            for j in range(ncols1 - 1):
-                v1 = i * ncols1 + j + 1
+        # --- CARAS superficie ---
+        for i in range(nrows - 1):
+            for j in range(ncols - 1):
+                v1 = i * ncols + j + 1
                 v2 = v1 + 1
-                v3 = v1 + ncols1
+                v3 = v1 + ncols
                 v4 = v3 + 1
                 f.write(f"f {v1} {v3} {v4} {v2}\n")
 
-        # --- CARAS superficie 2 ---
-        offset = nrows1 * ncols1
-        for i in range(nrows2 - 1):
-            for j in range(ncols2 - 1):
-                v1 = offset + i * ncols2 + j + 1
-                v2 = v1 + 1
-                v3 = v1 + ncols2
-                v4 = v3 + 1
-                f.write(f"f {v1} {v3} {v4} {v2}\n")
+        # --- VÉRTICES anillo ---
+        offset = nrows * ncols
+        for x, y, z in zip(x_ring, y_ring, z_ring):
+            f.write(f"v {x} {y} {z}\n")
 
-# Crear la segunda superficie (plano en z=0)
-Z_plane = np.zeros_like(Z3D)
+        # --- LÍNEA anillo cerrada ---
+        f.write("l ")
+        for i in range(len(x_ring)):
+            f.write(f"{offset + i + 1} ")
+        f.write(f"{offset + 1}\n")  # cerrar el anillo
 
 # Exportar
 obj_path = os.path.join(base_dir, "surface_and_ring.obj")
-export_two_surfaces_to_obj(X, Y, Z3D, X, Y, Z_plane, obj_path)
+export_surface_and_ring_to_obj(X, Y, Z3D, x_ring, y_ring, z_ring_array, obj_path)
 print(f"Exportado a {obj_path}")
+
