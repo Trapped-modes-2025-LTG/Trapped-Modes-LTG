@@ -2,9 +2,9 @@ Python code to perform free surface profilometry with synthetic schlieren imagin
 
 ## References
 
-1. A. Rosenfeld and J. Pfaltz. "Sequential Operations in Digital Picture Processing". *Journal of the ACM*. Vol. 13, Issue 4, Oct. 1966, pp. 471–494. doi: 10.1145/321356.321357 ([link](https://doi.org/10.1145/321356.321357))
-
-2. R. E. Tarjan. "Efficiency of a good but not linear set union algorithm". *Journal of the ACM*, 22:215–225, 1975. ([link](https://doi.org/...))
+1. Wildeman, Sander. “Real-Time Quantitative Schlieren Imaging by Fast Fourier Demodulation of a Checkered Backdrop.” Experiments in Fluids 59, no. 6 (June 2018): 97. ([doi]([https://doi.org/10.1007/s00348-018-2553-9]))
+2. Moisy, Frédéric, Marc Rabaud, and Kévin Salsac. “A Synthetic Schlieren Method for the Measurement of the Topography of a Liquid Interface.” Experiments in Fluids 46, no. 6 (June 2009): 1021–36. ([doi]([https://doi.org/10.1007/s00348-008-0608-z]))
+3. McIver, P. “Trapped Modes in an Axisymmetric Water-Wave Problem.” The Quarterly Journal of Mechanics and Applied Mathematics 50, no. 2 (May 1, 1997): 165–78. ([doi](https://doi.org/10.1093/qjmam/50.2.165)).
 
 ...
 
