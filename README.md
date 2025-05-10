@@ -2,6 +2,9 @@
 
 Python code to perform free surface profilometry with synthetic schlieren imaging (fast checkerboard demodulation). Most of the code was adapted from: https://github.com/kaspervn/pyfcd and https://github.com/trapped-modes-ltg.
 
+![Texto alternativo](/example/example_validation.png)
+
+
 ## References
 
 1. Wildeman, Sander. “Real-Time Quantitative Schlieren Imaging by Fast Fourier Demodulation of a Checkered Backdrop.” Experiments in Fluids 59, no. 6 (June 2018): 97. ([doi](https://doi.org/10.1007/s00348-018-2553-9))
