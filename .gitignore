@@ -1,4 +1,51 @@
+# Carpeta que ya eliminaste
 Relacion_dispersion/
 gotas_propagación.mp4
 toro_detección.mp4
 
+# Archivos generados de Python
+__pycache__/
+*.py[cod]
+*$py.class
+
+# Jupyter notebook checkpoints
+.ipynb_checkpoints/
+
+# Entornos virtuales comunes
+env/
+venv/
+*/env/
+*/venv/
+.mypy_cache/
+.pytest_cache/
+
+# Configuraciones locales
+.vscode/
+.idea/
+.spyproject/
+
+# Archivos potencialmente sensibles
+*.env
+*.key
+*.pem
+*.db
+secrets.*
+credentials.*
+
+# Archivos temporales y logs
+*.log
+*.tmp
+*.bak
+
+# Archivos auxiliares de LaTeX
+*.aux
+*.log
+*.toc
+*.out
+*.fls
+*.fdb_latexmk
+*.synctex.gz
+*.nav
+*.snm
+*.bbl
+*.blg
