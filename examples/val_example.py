@@ -34,8 +34,11 @@ ax[0].set_title('Displaced pattern')
 
 im1 = ax[1].imshow(values, origin='lower')
 cbar = fig.colorbar(im1, ax=ax[1], orientation='horizontal')
-ax[1].set_title('Height map returned by FCD')
+ax[1].set_title('Height map \n returned by FCD')
 
 im2 = ax[2].imshow(values-h, origin='lower')
 cbar = fig.colorbar(im2, ax=ax[2], orientation='horizontal')
-ax[2].set_title(r'Height differences: <' + f'{np.max(np.abs(values-h))*100/(np.max(np.abs(values))):.2f}%')
+ax[2].set_title('Height differences \n <' + f'{np.max(np.abs(values-h))*100/(np.max(np.abs(values))):.2f}%')
+
+plt.savefig('triple.png', bbox_inches = "tight", dpi = 400)
+#fig.tight_layout()
