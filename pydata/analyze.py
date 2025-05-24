@@ -12,11 +12,11 @@ import matplotlib.animation as animation
 
 class analyze:
     @classmethod
-    def load_image(path):
+    def load_image(cls,path):
         return io.imread(path, as_gray=True).astype(np.float32)
 
     @classmethod
-    def mask(image):
+    def mask(cls,image):
         return image  
 
     @classmethod
