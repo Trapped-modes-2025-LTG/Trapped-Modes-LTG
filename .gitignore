@@ -4,6 +4,8 @@ gotas_propagación.mp4
 toro_detección.mp4
 blender/
 datos/
+pydata/flotantes/
+pydata/save_and_video.py
 
 # Archivos generados de Python
 __pycache__/

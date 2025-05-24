@@ -87,7 +87,7 @@ class fcd:
         if plot:
             fig, ax = plt.subplots()
             ax.imshow(reference, cmap='gray')
-            ax.set_title(f"Calibration factor: {physical_wavelength / pixel_wavelength:.2f} dist/px")
+            ax.set_title(f"Calibration factor: \n {physical_wavelength / pixel_wavelength} dist/px")
             ax.plot([np.shape(reference)[0]/2,np.shape(reference)[0]/2+pixel_wavelength], [np.shape(reference)[1]/2,np.shape(reference)[1]/2], '.-', label = r'$\lambda$')
             ax.set_xlabel("X (pix)")
             ax.set_ylabel("Y (pix)")
@@ -96,7 +96,6 @@ class fcd:
             plt.show()
             
         return physical_wavelength / pixel_wavelength, peaks
-    
     
     @classmethod
     def compute_phases(cls,displaced_fft, carriers, unwrap=True):
@@ -136,6 +135,43 @@ class fcd:
         return np.array([u, v])
     
     
+    @staticmethod
+    def fft_peaks(image):
+        """
+        Plot the FFT spectrum and highlight the detected peaks and selected directions.
+        
+        Parameters:
+            image (np.ndarray): Input grayscale image.
+        """
+        image_fft_raw = fftshift(np.abs(fft2(image - np.mean(image))))
+        log_fft = np.log1p(image_fft_raw)
+        
+        ks_mesh_x, ks_mesh_y = fourier.wavenumber_meshgrid(image_fft_raw.shape, shifted=True)
+        kmin = 4 * np.pi / min(image.shape)
+        mask = (ks_mesh_x**2 + ks_mesh_y**2) > kmin**2
+        image_fft = image_fft_raw * mask
+
+        threshold = 0.5 * np.max(image_fft)
+        peak_locations = fourier.find_peak_locations(image_fft, threshold, 4)
+        rightmost_peak, perpendicular_peak = fourier.find_peaks(image)
+
+        fig, ax = plt.subplots()
+        ax.imshow(log_fft, origin='lower', cmap='magma')
+        ax.set_title("FFT Spectrum with Peaks")
+        ax.set_xlabel(r"$k_x$ (1/pix)")
+        ax.set_ylabel(r"$k_y$ (1/pix)")
+
+        for i, (y, x) in enumerate(peak_locations):
+            ax.plot(x, y, 'k.', markersize=6)
+            ax.text(x+5, y+5, f"peak {i+1}", color='white', fontsize=9)
+
+        ax.plot(rightmost_peak[1], rightmost_peak[0], 'r.', label='Rightmost peak')
+        ax.plot(perpendicular_peak[1], perpendicular_peak[0], 'b.', label=r'$\perp$ peak')
+
+        ax.legend()
+        plt.tight_layout()
+        plt.show()
+        
 class fourier:
     
     @classmethod
