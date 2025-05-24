@@ -67,7 +67,7 @@ class fcd:
         return  carriers, calibration_factor
     
     @classmethod
-    def compute_calibration_factor(square_size, reference, plot = False):
+    def compute_calibration_factor(cls,square_size, reference, plot = False):
         """
         Compute the calibration factor using the detected peaks.
     
@@ -88,7 +88,7 @@ class fcd:
             fig, ax = plt.subplots()
             ax.imshow(reference, cmap='gray')
             ax.set_title(f"Calibration factor: {physical_wavelength / pixel_wavelength:.2f} dist/px")
-            ax.plot([200,200+pixel_wavelength], [201,201], '.-', label = r'$\lambda$')
+            ax.plot([np.shape(reference)[0]/2,np.shape(reference)[0]/2+pixel_wavelength], [np.shape(reference)[1]/2,np.shape(reference)[1]/2], '.-', label = r'$\lambda$')
             ax.set_xlabel("X (pix)")
             ax.set_ylabel("Y (pix)")
             plt.legend()
@@ -99,7 +99,7 @@ class fcd:
     
     
     @classmethod
-    def compute_phases(displaced_fft, carriers, unwrap=True):
+    def compute_phases(cls,displaced_fft, carriers, unwrap=True):
         """
         Compute the phase maps from the displaced image.
     
@@ -118,7 +118,7 @@ class fcd:
         return phases
     
     @classmethod
-    def compute_displacement_field(phases, carriers):
+    def compute_displacement_field(cls,phases, carriers):
         """
         Compute the displacement field (u, v) from the phase maps.
     
@@ -175,7 +175,7 @@ class fourier:
         return rightmost_peak, perpendicular_peak
     
     @classmethod
-    def wavenumber(size, calibration_factor=1, shifted=False):
+    def wavenumber(cls,size, calibration_factor=1, shifted=False):
      
         """
         Compute the wavenumber (spatial frequency) vector. 
@@ -207,7 +207,7 @@ class fourier:
         return np.meshgrid(k_rows, k_cols, indexing='ij')
     
     @classmethod
-    def remove_degeneracy(kx, ky, shape):
+    def remove_degeneracy(cls,kx, ky, shape):
         """
         Remove Fourier space degeneracy at Nyquist frequencies.
         
@@ -271,7 +271,7 @@ class fourier:
         return np.real(ifft2(integrated_hat))
     
     @classmethod
-    def find_peak_locations(image, threshold, no_peaks):
+    def find_peak_locations(cls,image, threshold, no_peaks):
         """
         Detect brightest peaks in thresholded image.
         
