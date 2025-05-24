@@ -10,18 +10,18 @@ import pandas as pd
 import matplotlib.pyplot as plt
 import matplotlib.animation as animation
 
-class Analyze:
-    @staticmethod
+class analyze:
+    @classmethod
     def load_image(path):
         return io.imread(path, as_gray=True).astype(np.float32)
 
-    @staticmethod
+    @classmethod
     def mask(image):
         return image  
 
-    @staticmethod
-    def folder(reference_path, displaced_dir, layers, square_size, mask=False):
-        reference_image = Analyze.load_image(reference_path)
+    @classmethod
+    def folder(cls, reference_path, displaced_dir, layers, square_size, mask=False):
+        reference_image = cls.load_image(reference_path)
 
         output_dir = os.path.join(displaced_dir, 'maps')
         os.makedirs(output_dir, exist_ok=True)
@@ -31,10 +31,10 @@ class Analyze:
         for fname in sorted(os.listdir(displaced_dir)):
             if fname.endswith('.tif') and 'reference' not in fname:
                 displaced_path = os.path.join(displaced_dir, fname)
-                displaced_image = Analyze.load_image(displaced_path)
+                displaced_image = cls.load_image(displaced_path)
 
                 if mask:
-                    displaced_image = Analyze.mask(displaced_image)
+                    displaced_image = cls.mask(displaced_image)
 
                 height_map, _, calibration_factor = compute_height_map(
                     reference_image, displaced_image, square_size, layers
