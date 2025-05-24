@@ -10,7 +10,7 @@ import pandas as pd
 import matplotlib.pyplot as plt
 import matplotlib.animation as animation
 
-class Analyze:
+class analyze:
     @classmethod
     def load_image(path):
         return io.imread(path, as_gray=True).astype(np.float32)
@@ -21,7 +21,7 @@ class Analyze:
 
     @classmethod
     def folder(cls, reference_path, displaced_dir, layers, square_size, mask=False):
-        reference_image = Analyze.load_image(reference_path)
+        reference_image = cls.load_image(reference_path)
 
         output_dir = os.path.join(displaced_dir, 'maps')
         os.makedirs(output_dir, exist_ok=True)
