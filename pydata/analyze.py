@@ -11,15 +11,80 @@ from pyfcd.fcd import fcd
 import pandas as pd
 import matplotlib.pyplot as plt
 import matplotlib.animation as animation
-#%%
+from skimage.filters import gaussian#, sobel
+from skimage.measure import find_contours
+from scipy.ndimage import uniform_filter
+
 class analyze:
     @classmethod
     def load_image(cls,path):
         return io.imread(path, as_gray=True).astype(np.float32)
 
     @classmethod
-    def mask(cls,image):
-        return image  
+    def mask(cls,image,smoothed, percentage,  sigma_background=100, alpha=0, show = False):
+
+        def _subtract_background():
+            background = gaussian(image.astype(np.float32), sigma=sigma_background, preserve_range=True)
+            corrected = image.astype(np.float32) - alpha * background
+            return corrected
+
+        def _find_large_contours( binary):
+            contours = find_contours(binary, level=0.5)
+            if percentage > 0:
+                def area_contorno(contour):
+                    x = contour[:, 1]
+                    y = contour[:, 0]
+                    return 0.5 * np.abs(np.dot(x, np.roll(y, 1)) - np.dot(y, np.roll(x, 1)))
+                areas = np.array([area_contorno(c) for c in contours])
+                umbral = np.percentile(areas, percentage)
+                return [c for c, a in zip(contours, areas) if a >= umbral]
+            return contours
+        
+        
+        def _mostrar_resultados(binary, contornos, threshold, imagen_contorno):
+            plt.figure()
+
+            plt.subplot(1,3, 1)
+            plt.imshow(image, cmap='gray')
+            for c in contornos:
+                plt.scatter(c[:, 1], c[:, 0], s=1, c='cyan')
+            plt.title("Original + contornos")
+            plt.axis('off')
+
+
+            plt.subplot(1,3, 2)
+            plt.imshow(smooth, cmap='gray')
+            plt.title("Suavizado")
+            plt.axis('off')
+
+            plt.subplot(1,3, 3)
+            plt.imshow(imagen_contorno, cmap='gray')
+            for c in contornos:
+                plt.scatter(c[:, 1], c[:, 0], s=1, c='cyan')
+            plt.title("Binarizado")
+            plt.axis('off')
+
+            print(f"Cantidad de contornos detectados: {len(contornos)}")
+
+            plt.tight_layout()
+            plt.show()
+        
+        corrected = _subtract_background()
+        smooth = uniform_filter(corrected, size=smoothed)
+            
+        threshold = np.mean(smooth)
+        binary = (smooth > threshold).astype(np.uint8) * 255
+        contornos = _find_large_contours(binary)
+        imagen_contorno = binary
+            
+        if show:
+            _mostrar_resultados( smooth, contornos, 0, imagen_contorno)
+            
+        return imagen_contorno, contornos
+        
+        mask = binary.astype(bool)
+
+        return mask  
 
     @classmethod
     def folder(cls, reference_path, displaced_dir, layers, square_size, mask=False):
@@ -35,8 +100,8 @@ class analyze:
                 displaced_path = os.path.join(displaced_dir, fname)
                 displaced_image = cls.load_image(displaced_path)
 
-                if mask:
-                    displaced_image = cls.mask(displaced_image)
+                if mask:        # TODO: unavailable yet, wrong call
+                    displaced_image = displaced_image*cls.mask(displaced_image)
 
                 height_map, _, calibration_factor = fcd.compute_height_map(
                     reference_image, displaced_image, square_size, layers
@@ -102,3 +167,122 @@ class analyze:
         print(f"Saved in: {output_path}")
 
 
+
+# class ImageEnhancer:
+#     def __init__(self, imagen, sigma_background=100, alpha=0):
+#         self.image = imagen
+#         self.sigma_background = sigma_background
+#         self.alpha = alpha
+
+#     def _subtract_background(self):
+#         background = gaussian(self.image.astype(np.float32), sigma=self.sigma_background, preserve_range=True)
+#         corrected = self.image.astype(np.float32) - self.alpha * background
+#         return corrected
+
+#     def _find_large_contours(self, binary, percentil_contornos=0):
+#         contours = find_contours(binary, level=0.5)
+#         if percentil_contornos > 0:
+#             def area_contorno(contour):
+#                 x = contour[:, 1]
+#                 y = contour[:, 0]
+#                 return 0.5 * np.abs(np.dot(x, np.roll(y, 1)) - np.dot(y, np.roll(x, 1)))
+#             areas = np.array([area_contorno(c) for c in contours])
+#             umbral = np.percentile(areas, percentil_contornos)
+#             return [c for c, a in zip(contours, areas) if a >= umbral]
+#         return contours
+
+#     # def _find_contours_by_sobel(self, image, levels=[0.1], percentil_contornos=0):
+#     #     edges = sobel(image.astype(float) / 255.0)
+#     #     contornos = []
+#     #     for nivel in levels:
+#     #         c = find_contours(edges, level=nivel)
+#     #         contornos.extend(c)
+#     #     if percentil_contornos > 0 and contornos:
+#     #         def area_contorno(contour):
+#     #             x = contour[:, 1]
+#     #             y = contour[:, 0]
+#     #             return 0.5 * np.abs(np.dot(x, np.roll(y, 1)) - np.dot(y, np.roll(x, 1)))
+#     #         areas = np.array([area_contorno(c) for c in contornos])
+#     #         umbral = np.percentile(areas, percentil_contornos)
+#     #         contornos = [c for c, a in zip(contornos, areas) if a >= umbral]
+#     #     return contornos
+
+#     def procesar(self, suavizado=5, mostrar=True, percentil_contornos=0):
+    
+#         corrected = self._subtract_background()
+#         smooth = uniform_filter(corrected, size=suavizado)
+
+#         # if metodo_contorno == "sobel":
+#         #     contornos = self._find_contours_by_sobel(smooth, levels=[0.16], percentil_contornos=percentil_contornos)
+#         #     imagen_contorno = sobel(smooth.astype(float) / 255.0)
+#         # elif metodo_contorno == "binarizacion":
+#         #     threshold = np.mean(smooth)
+#         #     binary = (smooth > threshold).astype(np.uint8) * 255
+#         #     contornos = self._find_large_contours(binary, percentil_contornos=percentil_contornos)
+#         #     imagen_contorno = binary
+#         # else:
+#         #     raise ValueError(f"Método de contorno no reconocido: {metodo_contorno}")
+        
+#         threshold = np.mean(smooth)
+#         binary = (smooth > threshold).astype(np.uint8) * 255
+#         contornos = self._find_large_contours(binary, percentil_contornos=percentil_contornos)
+#         imagen_contorno = binary
+        
+#         if mostrar:
+#             self._mostrar_resultados( smooth,  imagen_contorno, contornos, 0, imagen_contorno)
+        
+#         return imagen_contorno, contornos
+        
+        
+
+#     def _mostrar_resultados(self, smooth, binary, contornos, threshold, imagen_contorno):
+#         plt.figure()
+
+#         plt.subplot(1,3, 1)
+#         plt.imshow(self.image, cmap='gray')
+#         for c in contornos:
+#             plt.scatter(c[:, 1], c[:, 0], s=1, c='cyan')
+#         plt.title("Original + contornos")
+#         plt.axis('off')
+
+
+#         plt.subplot(1,3, 2)
+#         plt.imshow(smooth, cmap='gray')
+#         plt.title("Suavizado")
+#         plt.axis('off')
+
+#         plt.subplot(1,3, 3)
+#         plt.imshow(imagen_contorno, cmap='gray')
+#         for c in contornos:
+#             plt.scatter(c[:, 1], c[:, 0], s=1, c='cyan')
+#         plt.title("Binarizado")
+#         plt.axis('off')
+
+#         print(f"Cantidad de contornos detectados: {len(contornos)}")
+
+#         plt.tight_layout()
+#         plt.show()
+
+# #%%      
+# base_dir = os.path.dirname(os.path.dirname(__file__))
+
+# tif_folder = os.path.join(base_dir, "datos","toroide_deteccion")
+
+# tif_files = [f for f in os.listdir(tif_folder) if f.lower().endswith('.tif')]
+
+
+# df_tif = pd.DataFrame({
+#     'nombre_archivo': tif_files,
+#     'ruta_completa': [os.path.join(tif_folder, f) for f in tif_files]
+# })
+
+# path = df_tif["ruta_completa"].iloc[5]
+# imagen = analyze.load_image(path)
+# #imagen = imread("C:/Users/Tomas/Desktop/FACULTAD/LABO 6/Resta-P8139-150Oe-50ms-1000.tif")[400:700, 475:825]
+# enhancer = ImageEnhancer(imagen=imagen)
+
+# enhancer = ImageEnhancer(imagen=imagen)
+# binary, contornos = enhancer.procesar(
+#     suavizado=20,
+#     percentil_contornos=30
+# )        
