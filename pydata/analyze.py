@@ -19,9 +19,38 @@ class analyze:
     @classmethod
     def load_image(cls,path):
         return io.imread(path, as_gray=True).astype(np.float32)
-
+    
     @classmethod
-    def mask(cls,image,smoothed, percentage,  sigma_background=100, alpha=0, show = False):
+    def folder(cls, reference_path, displaced_dir, layers, square_size, mask = None):
+        reference_image = cls.load_image(reference_path)
+
+        output_dir = os.path.join(displaced_dir, 'maps')
+        os.makedirs(output_dir, exist_ok=True)
+
+        calibration_saved = False
+
+        for fname in sorted(os.listdir(displaced_dir)):
+            if fname.endswith('.tif') and 'reference' not in fname:
+                displaced_path = os.path.join(displaced_dir, fname)
+                displaced_image = cls.load_image(displaced_path)
+
+                if mask:        # TODO: unavailable yet, wrong call
+                    displaced_image = displaced_image*mask
+
+                height_map, _, calibration_factor = fcd.compute_height_map(
+                    reference_image, displaced_image, square_size, layers
+                )
+
+                output_path = os.path.join(output_dir, fname.replace('.tif', '_map.npy'))
+                np.save(output_path, height_map)
+
+                if not calibration_saved:
+                    calibration_path = os.path.join(output_dir, 'calibration_factor.npy')
+                    np.save(calibration_path, np.array([calibration_factor]))
+                    calibration_saved = True
+                    
+    @staticmethod
+    def mask(image,smoothed, percentage, sigma_background=100, alpha=0, show = False):
 
         def _subtract_background():
             background = gaussian(image.astype(np.float32), sigma=sigma_background, preserve_range=True)
@@ -85,35 +114,6 @@ class analyze:
         mask = binary.astype(bool)
 
         return mask  
-
-    @classmethod
-    def folder(cls, reference_path, displaced_dir, layers, square_size, mask=False):
-        reference_image = cls.load_image(reference_path)
-
-        output_dir = os.path.join(displaced_dir, 'maps')
-        os.makedirs(output_dir, exist_ok=True)
-
-        calibration_saved = False
-
-        for fname in sorted(os.listdir(displaced_dir)):
-            if fname.endswith('.tif') and 'reference' not in fname:
-                displaced_path = os.path.join(displaced_dir, fname)
-                displaced_image = cls.load_image(displaced_path)
-
-                if mask:        # TODO: unavailable yet, wrong call
-                    displaced_image = displaced_image*cls.mask(displaced_image)
-
-                height_map, _, calibration_factor = fcd.compute_height_map(
-                    reference_image, displaced_image, square_size, layers
-                )
-
-                output_path = os.path.join(output_dir, fname.replace('.tif', '_map.npy'))
-                np.save(output_path, height_map)
-
-                if not calibration_saved:
-                    calibration_path = os.path.join(output_dir, 'calibration_factor.npy')
-                    np.save(calibration_path, np.array([calibration_factor]))
-                    calibration_saved = True
                     
     @staticmethod
     def video(maps_dir, calibration_factor = None):
