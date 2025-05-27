@@ -3,13 +3,15 @@
 '''
 
 import os
+import sys
 import numpy as np
+sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 from skimage import io
-from pyfcd.fcd import compute_height_map
+from pyfcd.fcd import fcd
 import pandas as pd
 import matplotlib.pyplot as plt
 import matplotlib.animation as animation
-
+#%%
 class analyze:
     @classmethod
     def load_image(cls,path):
@@ -36,7 +38,7 @@ class analyze:
                 if mask:
                     displaced_image = cls.mask(displaced_image)
 
-                height_map, _, calibration_factor = compute_height_map(
+                height_map, _, calibration_factor = fcd.compute_height_map(
                     reference_image, displaced_image, square_size, layers
                 )
 
