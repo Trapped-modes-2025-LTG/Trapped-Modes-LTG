@@ -1,5 +1,7 @@
 '''
-
+This script contains several functions to analyze measured data.
+All of them are included in a single class called `analyze` for organizational purposes.
+Each function is explained when it is called.
 '''
 
 import os
@@ -18,40 +20,37 @@ from scipy.ndimage import uniform_filter
 class analyze:
     @classmethod
     def load_image(cls,path):
+        '''
+        Loads a grayscale image and converts it to float32.
+    
+        Parameters
+        ----------
+        path: str - Path to the image file.
+    
+        Returns
+        -------
+        ndarray - 2D grayscale image as a float32 NumPy array.
+        '''
         return io.imread(path, as_gray=True).astype(np.float32)
     
     @classmethod
-    def folder(cls, reference_path, displaced_dir, layers, square_size, mask = None):
-        reference_image = cls.load_image(reference_path)
-
-        output_dir = os.path.join(displaced_dir, 'maps')
-        os.makedirs(output_dir, exist_ok=True)
-
-        calibration_saved = False
-
-        for fname in sorted(os.listdir(displaced_dir)):
-            if fname.endswith('.tif') and 'reference' not in fname:
-                displaced_path = os.path.join(displaced_dir, fname)
-                displaced_image = cls.load_image(displaced_path)
-
-                if mask:        # TODO: unavailable yet, wrong call
-                    displaced_image = displaced_image*mask
-
-                height_map, _, calibration_factor = fcd.compute_height_map(
-                    reference_image, displaced_image, square_size, layers
-                )
-
-                output_path = os.path.join(output_dir, fname.replace('.tif', '_map.npy'))
-                np.save(output_path, height_map)
-
-                if not calibration_saved:
-                    calibration_path = os.path.join(output_dir, 'calibration_factor.npy')
-                    np.save(calibration_path, np.array([calibration_factor]))
-                    calibration_saved = True
-                    
-    @staticmethod
-    def mask(image,smoothed, percentage, sigma_background=100, alpha=0, show = False):
-
+    def mask(cls,image,smoothed, percentage, sigma_background=100, alpha=0, show_mask = False):
+        '''
+        lipsum.
+    
+        Parameters
+        ----------
+        image: ndarray - 2D grayscale image.
+        smoothed: float - .
+        percentage: float - .
+        sigma_background: int - 
+        alpha: int - .
+        show_mask: False : Bool - Decide if the proccess used is ploted or not.
+        
+        Returns
+        -------
+        mask : .
+        '''
         def _subtract_background():
             background = gaussian(image.astype(np.float32), sigma=sigma_background, preserve_range=True)
             corrected = image.astype(np.float32) - alpha * background
@@ -69,7 +68,6 @@ class analyze:
                 return [c for c, a in zip(contours, areas) if a >= umbral]
             return contours
         
-        
         def _mostrar_resultados(binary, contornos, threshold, imagen_contorno):
             plt.figure()
 
@@ -77,20 +75,19 @@ class analyze:
             plt.imshow(image, cmap='gray')
             for c in contornos:
                 plt.scatter(c[:, 1], c[:, 0], s=1, c='cyan')
-            plt.title("Original + contornos")
+            plt.title("Original + edges")
             plt.axis('off')
-
 
             plt.subplot(1,3, 2)
             plt.imshow(smooth, cmap='gray')
-            plt.title("Suavizado")
+            plt.title("Smoothed")
             plt.axis('off')
 
             plt.subplot(1,3, 3)
             plt.imshow(imagen_contorno, cmap='gray')
             for c in contornos:
                 plt.scatter(c[:, 1], c[:, 0], s=1, c='cyan')
-            plt.title("Binarizado")
+            plt.title("Binarized")
             plt.axis('off')
 
             print(f"Cantidad de contornos detectados: {len(contornos)}")
@@ -106,14 +103,92 @@ class analyze:
         contornos = _find_large_contours(binary)
         imagen_contorno = binary
             
-        if show:
+        if show_mask:
             _mostrar_resultados( smooth, contornos, 0, imagen_contorno)
-            
-        return imagen_contorno, contornos
         
         mask = binary.astype(bool)
+        return mask, #imagen_contorno, contornos
+    
+    @classmethod
+    def folder(cls, reference_path, displaced_dir, layers, square_size,
+               smoothed = None, percentage = None, sigma_background=100, alpha=0, show_mask = False):        
+        '''
+        Processes a folder of ".tif" images to compute height maps using the FCD method.
+    
+        Steps:
+            - Load a reference image.
+            - Create a folder to store the output data.
+            - For each ".tif" file in the directory (excluding the reference image):
+                - Load the displaced image.
+                - Optionally apply a mask to remove floating structures.
+                - Compute the height map using the pyfcd library.
+                - Save the height map as a ".npy" file.
+            - Save the calibration factor as "calibration_factor.npy".
+    
+        For more details, refer to the pyfcd.fcd documentation.
+    
+        Parameters
+        ----------
+        reference_path : str
+            Path to the reference image used by the FCD method.
+        displaced_dir : str
+            Path to the folder containing the displaced images.
+        layers : list
+            List of layer parameters for pyfcd (check pyfcd docs).
+        square_size : float
+            Size of square pattern at rest.
+        smoothed : int, optional
+            Size of the smoothing filter applied to the image before masking.
+        percentage : int, optional
+            Percentage threshold to select the largest contours for masking.
+        sigma_background : int, default=100
+            Sigma for the background subtraction filter.
+        alpha : float, default=0
+            Scaling factor for the background subtraction.
+        show_mask : bool, default=False
+            If True, shows the generated mask and contour detection results.
+    
+        Returns
+        -------
+        None
+            The function saves output files to a folder called "maps" inside displaced_dir.
+        '''
+        reference_image = cls.load_image(reference_path)
+        
+        output_dir = os.path.join(displaced_dir, 'maps')
+        os.makedirs(output_dir, exist_ok=True)
 
-        return mask  
+        calibration_saved = False
+
+        for fname in sorted(os.listdir(displaced_dir)):
+            if fname.endswith('.tif') and 'reference' not in fname:
+                displaced_path = os.path.join(displaced_dir, fname)
+                displaced_image = cls.load_image(displaced_path)
+
+                if smoothed and percentage:        # TODO: unavailable yet, wrong call
+                    displaced_image = displaced_image*cls.mask(
+                        displaced_image,
+                        smoothed, 
+                        percentage, 
+                        sigma_background = sigma_background, 
+                        alpha = alpha, 
+                        show_mask = False
+                        )
+
+                height_map, _, calibration_factor = fcd.compute_height_map(
+                    reference_image, 
+                    displaced_image, 
+                    square_size, 
+                    layers
+                    )
+
+                output_path = os.path.join(output_dir, fname.replace('.tif', '_map.npy'))
+                np.save(output_path, height_map)
+
+                if not calibration_saved:
+                    calibration_path = os.path.join(output_dir, 'calibration_factor.npy')
+                    np.save(calibration_path, np.array([calibration_factor]))
+                    calibration_saved = True
                     
     @staticmethod
     def video(maps_dir, calibration_factor = None):
@@ -165,8 +240,6 @@ class analyze:
         ani.save(output_path, writer='ffmpeg', fps=30)
 
         print(f"Saved in: {output_path}")
-
-
 
 # class ImageEnhancer:
 #     def __init__(self, imagen, sigma_background=100, alpha=0):
