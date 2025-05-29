@@ -1,9 +1,6 @@
 import os
 import sys
-import numpy as np
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
-from pyfcd.fcd import fcd
-import matplotlib.pyplot as plt
 from pydata.analyze import analyze
 import pandas as pd
 
@@ -22,7 +19,7 @@ path = df_tif["file_path"].iloc[5]      # choose one
 image = analyze.load_image(path)
 
 mask = analyze.mask(image,
-                    smoothed = 20, 
-                    percentage = 30,
-                    show = True
+                    smoothed = 15, 
+                    percentage = 90,
+                    show_mask = True
                     )

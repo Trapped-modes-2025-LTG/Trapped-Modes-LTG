@@ -174,7 +174,3 @@ class fcd:
         ax.legend()
         plt.tight_layout()
         plt.show()
-        
-
-    
-    
