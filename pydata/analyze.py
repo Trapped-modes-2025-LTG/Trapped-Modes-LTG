@@ -34,7 +34,7 @@ class analyze:
         return io.imread(path, as_gray=True).astype(np.float32)
     
     @classmethod
-    def mask(cls,image,smoothed, percentage, sigma_background=100, alpha=0, show_mask = False):
+    def mask(cls,image,smoothed, percentage, sigma_background=100, show_mask = False):
         '''
         lipsum.
     
@@ -51,10 +51,10 @@ class analyze:
         -------
         mask : .
         '''
-        def _subtract_background():
-            background = gaussian(image.astype(np.float32), sigma=sigma_background, preserve_range=True)
-            corrected = image.astype(np.float32) - alpha * background
-            return corrected
+        # def _subtract_background():
+        #     background = gaussian(image.astype(np.float32), sigma=sigma_background, preserve_range=True)
+        #     corrected = image.astype(np.float32) - alpha * background
+        #     return corrected
 
         def _find_large_contours( binary):
             contours = find_contours(binary, level=0.5)
@@ -95,8 +95,7 @@ class analyze:
             plt.tight_layout()
             plt.show()
         
-        corrected = _subtract_background()
-        smooth = uniform_filter(corrected, size=smoothed)
+        smooth = uniform_filter(image, size=smoothed)
             
         threshold = np.mean(smooth)
         binary = (smooth > threshold).astype(np.uint8) * 255
@@ -111,7 +110,7 @@ class analyze:
     
     @classmethod
     def folder(cls, reference_path, displaced_dir, layers, square_size,
-               smoothed = None, percentage = None, sigma_background=100, alpha=0, show_mask = False):        
+               smoothed = None, percentage = None, sigma_background=100, show_mask = False):        
         '''
         Processes a folder of ".tif" images to compute height maps using the FCD method.
     
@@ -170,8 +169,7 @@ class analyze:
                         displaced_image,
                         smoothed, 
                         percentage, 
-                        sigma_background = sigma_background, 
-                        alpha = alpha, 
+                        sigma_background = sigma_background,  
                         show_mask = False
                         )
 
