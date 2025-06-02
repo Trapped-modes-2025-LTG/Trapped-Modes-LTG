@@ -13,9 +13,10 @@ from pyfcd.fcd import fcd
 import pandas as pd
 import matplotlib.pyplot as plt
 import matplotlib.animation as animation
-from skimage.filters import gaussian#, sobel
+#from skimage.filters import sobel
 from skimage.measure import find_contours
 from scipy.ndimage import uniform_filter
+import cv2
 
 class analyze:
     @classmethod
@@ -56,7 +57,7 @@ class analyze:
         #     corrected = image.astype(np.float32) - alpha * background
         #     return corrected
 
-        def _find_large_contours( binary):
+        def _find_large_contours(binary):
             contours = find_contours(binary, level=0.5)
             if percentage > 0:
                 def area_contorno(contour):
@@ -68,7 +69,7 @@ class analyze:
                 return [c for c, a in zip(contours, areas) if a >= umbral]
             return contours
         
-        def _mostrar_resultados(binary, contornos, threshold, imagen_contorno):
+        def _mostrar_resultados(binary, contornos, imagen_contorno):
             plt.figure()
 
             plt.subplot(1,3, 1)
@@ -103,14 +104,28 @@ class analyze:
         imagen_contorno = binary
             
         if show_mask:
-            _mostrar_resultados( smooth, contornos, 0, imagen_contorno)
+            _mostrar_resultados(binary, contornos, imagen_contorno)
         
-        mask = binary.astype(bool)
-        return mask, #imagen_contorno, contornos
+        contornos = sorted(contornos, key=lambda c: cv2.contourArea(c.astype(np.int32)), reverse=True)
+        cnt1 = contornos[0].astype(np.int32)
+        cnt2 = contornos[1].astype(np.int32)
+
+        mask_shape = image.shape[:2]  
+        outer_mask = np.zeros(mask_shape, dtype=np.uint8)
+        inner_mask = np.zeros(mask_shape, dtype=np.uint8)
+
+        cv2.drawContours(outer_mask, [cnt1], -1, color=1, thickness=cv2.FILLED)
+        cv2.drawContours(inner_mask, [cnt2], -1, color=1, thickness=cv2.FILLED)
+
+        between_mask = outer_mask - inner_mask
+        between_mask[between_mask < 0] = 0
+        mask = (1-between_mask).astype(float)
+        
+        return mask, contornos
     
     @classmethod
     def folder(cls, reference_path, displaced_dir, layers, square_size,
-               smoothed = None, percentage = None, sigma_background=100, show_mask = False):        
+               smoothed = None, percentage = None, sigma_background=100, show_mask = False, timer = False):        
         '''
         Processes a folder of ".tif" images to compute height maps using the FCD method.
     
@@ -158,21 +173,31 @@ class analyze:
         os.makedirs(output_dir, exist_ok=True)
 
         calibration_saved = False
-
-        for fname in sorted(os.listdir(displaced_dir)):
+        
+        # for fname in sorted(os.listdir(displaced_dir)):
+        for n, fname in enumerate(sorted(os.listdir(displaced_dir))):
             if fname.endswith('.tif') and 'reference' not in fname:
                 displaced_path = os.path.join(displaced_dir, fname)
                 displaced_image = cls.load_image(displaced_path)
-
+                
                 if smoothed and percentage:        # TODO: unavailable yet, wrong call
-                    displaced_image = displaced_image*cls.mask(
+                    mask, _= cls.mask(
                         displaced_image,
                         smoothed, 
                         percentage, 
                         sigma_background = sigma_background,  
                         show_mask = False
                         )
-
+                    
+                    height_map, _, calibration_factor = fcd.compute_height_map(
+                        reference_image, 
+                        displaced_image*mask, 
+                        square_size, 
+                        layers
+                        )
+                    
+                    height_map = height_map*mask
+                
                 height_map, _, calibration_factor = fcd.compute_height_map(
                     reference_image, 
                     displaced_image, 
@@ -187,7 +212,8 @@ class analyze:
                     calibration_path = os.path.join(output_dir, 'calibration_factor.npy')
                     np.save(calibration_path, np.array([calibration_factor]))
                     calibration_saved = True
-                    
+                if timer:
+                    print(f"{n}/{len(os.listdir(displaced_dir))}")
     @staticmethod
     def video(maps_dir, calibration_factor = None):
         
