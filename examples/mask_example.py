@@ -48,30 +48,6 @@ mask, contornos = analyze.mask(image,
                     show_mask = False
                     )
 
-contorno = contornos[0]  # Suponiendo que es uno solo
-p1 = contorno[0]
-p2 = contorno[-1]
-
-y_max = mask.shape[0] - 1  # 1023
-
-y1, x1 = p1.astype(int)
-y2, x2 = p2.astype(int)
-
-camino1_x = np.linspace(x1, y_max, int(y_max-x1))
-
-camino2_y = np.linspace(0,y2,int(y2)) 
-
-if 0 in camino1_x:
-    camino1_y = np.full_like(camino1_x, 1023)
-elif 1023 in camino1_x:
-    camino1_y = np.zeros_like(camino1_x)
-    
-if 0 in camino2_y:
-    camino2_x = np.full_like(camino2_y, 1023)  
-elif 1023 in camino2_y:
-    camino2_x = np.zeros_like(camino2_y)
-    
-    
 displaced = mask.T*image
 
 reference_path = os.path.join(base_dir2, "datos", "29_5", "reference.tif")

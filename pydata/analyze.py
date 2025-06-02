@@ -52,10 +52,6 @@ class analyze:
         -------
         mask : .
         '''
-        # def _subtract_background():
-        #     background = gaussian(image.astype(np.float32), sigma=sigma_background, preserve_range=True)
-        #     corrected = image.astype(np.float32) - alpha * background
-        #     return corrected
 
         def _find_large_contours(binary):
             contours = find_contours(binary, level=0.5)
@@ -110,6 +106,8 @@ class analyze:
         cnt1 = contornos[0].astype(np.int32)
         cnt2 = contornos[1].astype(np.int32)
         
+        # Add corner to the mask
+        
         if not cnt1[-1][0] == cnt1[0][0] or cnt1[-1][1] == cnt1[0][1]:
     
             p1 = cnt1[0]
@@ -117,29 +115,46 @@ class analyze:
         
             y_max = image.shape[0] - 1 
         
-            y1, x1 = p1.astype(int)
-            y2, x2 = p2.astype(int)
-        
-            camino1_x = np.linspace(x1, y_max, int(y_max - x1))
-            camino2_y = np.linspace(0, y2, int(y2))
-        
-            if 0 in camino1_x:
-                camino1_y = np.full_like(camino1_x, y_max)
-            elif y_max in camino1_x:
-                camino1_y = np.zeros_like(camino1_x)
-            else:
-                camino1_y = np.full_like(camino1_x, -1) 
-        
-            if 0 in camino2_y:
-                camino2_x = np.full_like(camino2_y, y_max)
-            elif y_max in camino2_y:
-                camino2_x = np.zeros_like(camino2_y)
-            else:
-                camino2_x = np.full_like(camino2_y, -1)
-        
-            camino1 = np.stack([camino1_y, camino1_x], axis=1).astype(np.int32)
-            camino2 = np.stack([camino2_y, camino2_x], axis=1).astype(np.int32)
-        
+            caminos_y = []
+            caminos_x = []
+            
+            for y, x in [p1, p2]:
+                y, x = int(y), int(x)
+            
+                if x == 0:
+                    if y > y_max / 2:
+                        camino_y = np.linspace(y, y_max, int(y_max - y))
+                    else:
+                        camino_y = np.linspace(0, y, int(y))
+                    camino_x = np.zeros_like(camino_y)
+            
+                elif y == 0:
+                    if x > y_max / 2:
+                        camino_x = np.linspace(x, y_max, int(y_max - x))
+                    else:
+                        camino_x = np.linspace(0, x, int(x))
+                    camino_y = np.zeros_like(camino_x)
+            
+                elif x == y_max:
+                    if y > y_max / 2:
+                        camino_y = np.linspace(y, y_max, int(y_max - y))
+                    else:
+                        camino_y = np.linspace(0, y, int(y))
+                    camino_x = np.full_like(camino_y, y_max)
+            
+                elif y == y_max:
+                    if x > y_max / 2:
+                        camino_x = np.linspace(x, y_max, int(y_max - x))
+                    else:
+                        camino_x = np.linspace(0, x, int(x))
+                    camino_y = np.full_like(camino_x, y_max)
+            
+                caminos_y.append(camino_y)
+                caminos_x.append(camino_x)
+            
+            camino1 = np.stack([caminos_y[0], caminos_x[0]], axis=1).astype(np.int32)
+            camino2 = np.stack([caminos_y[1], caminos_x[1]], axis=1).astype(np.int32)
+            
             cnt1 = np.concatenate([cnt1, camino1, camino2])
         
         mask_shape = image.shape[:2]  
@@ -152,6 +167,8 @@ class analyze:
         between_mask = outer_mask - inner_mask
         between_mask[between_mask < 0] = 0
         mask = (1-between_mask).astype(float)
+        
+        contornos[0] = cnt1
         
         return mask, contornos
     
