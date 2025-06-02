@@ -52,10 +52,6 @@ class analyze:
         -------
         mask : .
         '''
-        # def _subtract_background():
-        #     background = gaussian(image.astype(np.float32), sigma=sigma_background, preserve_range=True)
-        #     corrected = image.astype(np.float32) - alpha * background
-        #     return corrected
 
         def _find_large_contours(binary):
             contours = find_contours(binary, level=0.5)
@@ -109,7 +105,58 @@ class analyze:
         contornos = sorted(contornos, key=lambda c: cv2.contourArea(c.astype(np.int32)), reverse=True)
         cnt1 = contornos[0].astype(np.int32)
         cnt2 = contornos[1].astype(np.int32)
-
+        
+        # Add corner to the mask
+        
+        if not cnt1[-1][0] == cnt1[0][0] or cnt1[-1][1] == cnt1[0][1]:
+    
+            p1 = cnt1[0]
+            p2 = cnt1[-1]
+        
+            y_max = image.shape[0] - 1 
+        
+            caminos_y = []
+            caminos_x = []
+            
+            for y, x in [p1, p2]:
+                y, x = int(y), int(x)
+            
+                if x == 0:
+                    if y > y_max / 2:
+                        camino_y = np.linspace(y, y_max, int(y_max - y))
+                    else:
+                        camino_y = np.linspace(0, y, int(y))
+                    camino_x = np.zeros_like(camino_y)
+            
+                elif y == 0:
+                    if x > y_max / 2:
+                        camino_x = np.linspace(x, y_max, int(y_max - x))
+                    else:
+                        camino_x = np.linspace(0, x, int(x))
+                    camino_y = np.zeros_like(camino_x)
+            
+                elif x == y_max:
+                    if y > y_max / 2:
+                        camino_y = np.linspace(y, y_max, int(y_max - y))
+                    else:
+                        camino_y = np.linspace(0, y, int(y))
+                    camino_x = np.full_like(camino_y, y_max)
+            
+                elif y == y_max:
+                    if x > y_max / 2:
+                        camino_x = np.linspace(x, y_max, int(y_max - x))
+                    else:
+                        camino_x = np.linspace(0, x, int(x))
+                    camino_y = np.full_like(camino_x, y_max)
+            
+                caminos_y.append(camino_y)
+                caminos_x.append(camino_x)
+            
+            camino1 = np.stack([caminos_y[0], caminos_x[0]], axis=1).astype(np.int32)
+            camino2 = np.stack([caminos_y[1], caminos_x[1]], axis=1).astype(np.int32)
+            
+            cnt1 = np.concatenate([cnt1, camino1, camino2])
+        
         mask_shape = image.shape[:2]  
         outer_mask = np.zeros(mask_shape, dtype=np.uint8)
         inner_mask = np.zeros(mask_shape, dtype=np.uint8)
@@ -120,6 +167,8 @@ class analyze:
         between_mask = outer_mask - inner_mask
         between_mask[between_mask < 0] = 0
         mask = (1-between_mask).astype(float)
+        
+        contornos[0] = cnt1
         
         return mask, contornos
     
@@ -167,7 +216,7 @@ class analyze:
         None
             The function saves output files to a folder called "maps" inside displaced_dir.
         '''
-        reference_image = cls.load_image(reference_path)
+        reference = cls.load_image(reference_path)
         
         output_dir = os.path.join(displaced_dir, 'maps')
         os.makedirs(output_dir, exist_ok=True)
@@ -189,21 +238,24 @@ class analyze:
                         show_mask = False
                         )
                     
+                    displaced = mask.T*displaced_image
+                    displaced_w = np.where((mask.T),displaced, reference)
+                    
                     height_map, _, calibration_factor = fcd.compute_height_map(
-                        reference_image, 
-                        displaced_image*mask, 
+                        reference, 
+                        displaced_w, 
                         square_size, 
                         layers
                         )
                     
-                    height_map = height_map*mask
-                
-                height_map, _, calibration_factor = fcd.compute_height_map(
-                    reference_image, 
-                    displaced_image, 
-                    square_size, 
-                    layers
-                    )
+                    height_map = height_map*mask.T
+                else: 
+                    height_map, _, calibration_factor = fcd.compute_height_map(
+                        reference, 
+                        displaced_image, 
+                        square_size, 
+                        layers
+                        )
 
                 output_path = os.path.join(output_dir, fname.replace('.tif', '_map.npy'))
                 np.save(output_path, height_map)
