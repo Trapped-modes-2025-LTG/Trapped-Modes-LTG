@@ -109,7 +109,39 @@ class analyze:
         contornos = sorted(contornos, key=lambda c: cv2.contourArea(c.astype(np.int32)), reverse=True)
         cnt1 = contornos[0].astype(np.int32)
         cnt2 = contornos[1].astype(np.int32)
-
+        
+        if not cnt1[-1][0] == cnt1[0][0] or cnt1[-1][1] == cnt1[0][1]:
+    
+            p1 = cnt1[0]
+            p2 = cnt1[-1]
+        
+            y_max = image.shape[0] - 1 
+        
+            y1, x1 = p1.astype(int)
+            y2, x2 = p2.astype(int)
+        
+            camino1_x = np.linspace(x1, y_max, int(y_max - x1))
+            camino2_y = np.linspace(0, y2, int(y2))
+        
+            if 0 in camino1_x:
+                camino1_y = np.full_like(camino1_x, y_max)
+            elif y_max in camino1_x:
+                camino1_y = np.zeros_like(camino1_x)
+            else:
+                camino1_y = np.full_like(camino1_x, -1) 
+        
+            if 0 in camino2_y:
+                camino2_x = np.full_like(camino2_y, y_max)
+            elif y_max in camino2_y:
+                camino2_x = np.zeros_like(camino2_y)
+            else:
+                camino2_x = np.full_like(camino2_y, -1)
+        
+            camino1 = np.stack([camino1_y, camino1_x], axis=1).astype(np.int32)
+            camino2 = np.stack([camino2_y, camino2_x], axis=1).astype(np.int32)
+        
+            cnt1 = np.concatenate([cnt1, camino1, camino2])
+        
         mask_shape = image.shape[:2]  
         outer_mask = np.zeros(mask_shape, dtype=np.uint8)
         inner_mask = np.zeros(mask_shape, dtype=np.uint8)
@@ -167,7 +199,7 @@ class analyze:
         None
             The function saves output files to a folder called "maps" inside displaced_dir.
         '''
-        reference_image = cls.load_image(reference_path)
+        reference = cls.load_image(reference_path)
         
         output_dir = os.path.join(displaced_dir, 'maps')
         os.makedirs(output_dir, exist_ok=True)
@@ -189,21 +221,24 @@ class analyze:
                         show_mask = False
                         )
                     
+                    displaced = mask.T*displaced_image
+                    displaced_w = np.where((mask.T),displaced, reference)
+                    
                     height_map, _, calibration_factor = fcd.compute_height_map(
-                        reference_image, 
-                        displaced_image*mask, 
+                        reference, 
+                        displaced_w, 
                         square_size, 
                         layers
                         )
                     
-                    height_map = height_map*mask
-                
-                height_map, _, calibration_factor = fcd.compute_height_map(
-                    reference_image, 
-                    displaced_image, 
-                    square_size, 
-                    layers
-                    )
+                    height_map = height_map*mask.T
+                else: 
+                    height_map, _, calibration_factor = fcd.compute_height_map(
+                        reference, 
+                        displaced_image, 
+                        square_size, 
+                        layers
+                        )
 
                 output_path = os.path.join(output_dir, fname.replace('.tif', '_map.npy'))
                 np.save(output_path, height_map)

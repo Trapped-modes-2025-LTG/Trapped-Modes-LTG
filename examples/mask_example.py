@@ -48,48 +48,52 @@ mask, contornos = analyze.mask(image,
                     show_mask = False
                     )
 
+contorno = contornos[0]  # Suponiendo que es uno solo
+p1 = contorno[0]
+p2 = contorno[-1]
+
+y_max = mask.shape[0] - 1  # 1023
+
+y1, x1 = p1.astype(int)
+y2, x2 = p2.astype(int)
+
+camino1_x = np.linspace(x1, y_max, int(y_max-x1))
+
+camino2_y = np.linspace(0,y2,int(y2)) 
+
+if 0 in camino1_x:
+    camino1_y = np.full_like(camino1_x, 1023)
+elif 1023 in camino1_x:
+    camino1_y = np.zeros_like(camino1_x)
+    
+if 0 in camino2_y:
+    camino2_x = np.full_like(camino2_y, 1023)  
+elif 1023 in camino2_y:
+    camino2_x = np.zeros_like(camino2_y)
+    
+    
 displaced = mask.T*image
 
 reference_path = os.path.join(base_dir2, "datos", "29_5", "reference.tif")
 
 reference = analyze.load_image(reference_path)
 
-plt.figure()
-plt.imshow(reference-displaced)
+# plt.figure()
+# plt.imshow(displaced)
+# for c in contornos:
+#     plt.scatter(c[:, 1], c[:, 0], s=1, c='cyan')
 
 layers = [[5.7e-2,1.0003], [ 1.2e-2,1.48899], [3.4e-2,1.34], [ 80e-2 ,1.0003]]
 
 square_size = 0.002
 
-displaced = np.where((mask),displaced, reference)
-
-values = fcd.compute_height_map(reference, displaced, square_size,layers)
+displaced = np.where((mask.T),displaced, reference)
 
 plt.figure()
+plt.imshow(displaced-reference)
+
+values = fcd.compute_height_map(reference, displaced, square_size, layers)
+plt.figure()
 plt.imshow(values[0])
+plt.colorbar()
 
-# #%%
-# import cv2
-# import numpy as np
-
-# cnt1 = contornos[0].astype(np.int32)
-# cnt2 = contornos[1].astype(np.int32)
-
-# # Asegurarse de que la forma sea 2D
-# mask_shape = image.shape[:2]  # o usa mask.reshape((H, W)) si es necesario
-# outer_mask = np.zeros(mask_shape, dtype=np.uint8)
-# inner_mask = np.zeros(mask_shape, dtype=np.uint8)
-
-# cv2.drawContours(outer_mask, [cnt1], -1, color=1, thickness=cv2.FILLED)
-# cv2.drawContours(inner_mask, [cnt2], -1, color=1, thickness=cv2.FILLED)
-
-# between_mask = outer_mask - inner_mask
-# between_mask[between_mask < 0] = 0
-# mask = 1-between_mask
-# plt.figure()
-# plt.imshow(mask, cmap='gray')
-# plt.title("Máscara entre contornos")
-# plt.axis('off')
-# plt.show()
-
-#%%
