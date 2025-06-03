@@ -6,17 +6,18 @@ Each function is explained when it is called.
 
 import os
 import sys
-import numpy as np
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
-from skimage import io
 from pyfcd.fcd import fcd
+import numpy as np
 import pandas as pd
 import matplotlib.pyplot as plt
 import matplotlib.animation as animation
-#from skimage.filters import sobel
-from skimage.measure import find_contours
 from scipy.ndimage import uniform_filter
 import cv2
+#from skimage.filters import sobel
+from skimage import io
+from skimage.draw import polygon
+from skimage.measure import regionprops, label,find_contours
 
 class analyze:
     @classmethod
@@ -102,32 +103,33 @@ class analyze:
         if show_mask:
             _mostrar_resultados(binary, contornos, imagen_contorno)
         
+        
         contornos = sorted(contornos, key=lambda c: cv2.contourArea(c.astype(np.int32)), reverse=True)
         cnt1 = contornos[0].astype(np.int32)
         cnt2 = contornos[1].astype(np.int32)
-        
+            
         # Add corner to the mask
-        
+            
         if not cnt1[-1][0] == cnt1[0][0] or cnt1[-1][1] == cnt1[0][1]:
-    
+        
             p1 = cnt1[0]
             p2 = cnt1[-1]
-        
+            
             y_max = image.shape[0] - 1 
-        
+            
             caminos_y = []
             caminos_x = []
-            
+                
             for y, x in [p1, p2]:
                 y, x = int(y), int(x)
-            
+                
                 if x == 0:
                     if y > y_max / 2:
                         camino_y = np.linspace(y, y_max, int(y_max - y))
                     else:
                         camino_y = np.linspace(0, y, int(y))
                     camino_x = np.zeros_like(camino_y)
-            
+                
                 elif y == 0:
                     if x > y_max / 2:
                         camino_x = np.linspace(x, y_max, int(y_max - x))
@@ -148,47 +150,38 @@ class analyze:
                     else:
                         camino_x = np.linspace(0, x, int(x))
                     camino_y = np.full_like(camino_x, y_max)
-            
+                
                 caminos_y.append(camino_y)
                 caminos_x.append(camino_x)
-            
+                
             camino1 = np.stack([caminos_y[0], caminos_x[0]], axis=1).astype(np.int32)
             camino2 = np.stack([caminos_y[1], caminos_x[1]], axis=1).astype(np.int32)
-            
+                
             cnt1 = np.concatenate([cnt1, camino1, camino2])
-        
-        mask_shape = image.shape[:2]  
-        outer_mask = np.zeros(mask_shape, dtype=np.uint8)
-        inner_mask = np.zeros(mask_shape, dtype=np.uint8)
-
-        cv2.drawContours(outer_mask, [cnt1], -1, color=1, thickness=cv2.FILLED)
-        cv2.drawContours(inner_mask, [cnt2], -1, color=1, thickness=cv2.FILLED)
-
-        between_mask = outer_mask - inner_mask
-        between_mask[between_mask < 0] = 0
-        mask = (1-between_mask).astype(float)
-        
-        contornos[0] = cnt1
-        
-        return mask, contornos
+            
+            mask_shape = image.shape[:2]  
+            outer_mask = np.zeros(mask_shape, dtype=np.uint8)
+            inner_mask = np.zeros(mask_shape, dtype=np.uint8)
+    
+            cv2.drawContours(outer_mask, [cnt1], -1, color=1, thickness=cv2.FILLED)
+            cv2.drawContours(inner_mask, [cnt2], -1, color=1, thickness=cv2.FILLED)
+    
+            between_mask = outer_mask - inner_mask
+            between_mask[between_mask < 0] = 0
+            mask = (1-between_mask).astype(float)
+            
+            contornos[0] = cnt1
+            
+            return mask, contornos
+        else: 
+            return None , contornos
     
     @classmethod
     def folder(cls, reference_path, displaced_dir, layers, square_size,
-               smoothed = None, percentage = None, sigma_background=100, show_mask = False, timer = False):        
+           smoothed=None, percentage=None, sigma_background=100,
+           show_mask=False, timer=False, only="mask"):
         '''
         Processes a folder of ".tif" images to compute height maps using the FCD method.
-    
-        Steps:
-            - Load a reference image.
-            - Create a folder to store the output data.
-            - For each ".tif" file in the directory (excluding the reference image):
-                - Load the displaced image.
-                - Optionally apply a mask to remove floating structures.
-                - Compute the height map using the pyfcd library.
-                - Save the height map as a ".npy" file.
-            - Save the calibration factor as "calibration_factor.npy".
-    
-        For more details, refer to the pyfcd.fcd documentation.
     
         Parameters
         ----------
@@ -201,71 +194,87 @@ class analyze:
         square_size : float
             Size of square pattern at rest.
         smoothed : int, optional
-            Size of the smoothing filter applied to the image before masking.
+            Size of the smoothing filter applied before masking.
         percentage : int, optional
-            Percentage threshold to select the largest contours for masking.
+            Percentage threshold for contour masking.
         sigma_background : int, default=100
             Sigma for the background subtraction filter.
-        alpha : float, default=0
-            Scaling factor for the background subtraction.
         show_mask : bool, default=False
-            If True, shows the generated mask and contour detection results.
+            If True, displays the generated mask and contours.
+        timer : bool, default=False
+            If True, prints progress during processing.
+        only : str, default="mask"
+            Determines what to save: "mask", "contours", or "both".
     
         Returns
         -------
         None
-            The function saves output files to a folder called "maps" inside displaced_dir.
+            Saves height maps and/or contours in a "maps" folder inside displaced_dir.
         '''
-        reference = cls.load_image(reference_path)
         
+        reference = cls.load_image(reference_path)
         output_dir = os.path.join(displaced_dir, 'maps')
         os.makedirs(output_dir, exist_ok=True)
-
+    
         calibration_saved = False
-        
-        # for fname in sorted(os.listdir(displaced_dir)):
-        for n, fname in enumerate(sorted(os.listdir(displaced_dir))):
-            if fname.endswith('.tif') and 'reference' not in fname:
-                displaced_path = os.path.join(displaced_dir, fname)
-                displaced_image = cls.load_image(displaced_path)
-                
-                if smoothed and percentage:        # TODO: unavailable yet, wrong call
-                    mask, _= cls.mask(
-                        displaced_image,
-                        smoothed, 
-                        percentage, 
-                        sigma_background = sigma_background,  
-                        show_mask = False
-                        )
-                    
-                    displaced = mask.T*displaced_image
-                    displaced_w = np.where((mask.T),displaced, reference)
-                    
-                    height_map, _, calibration_factor = fcd.compute_height_map(
-                        reference, 
-                        displaced_w, 
-                        square_size, 
-                        layers
-                        )
-                    
-                    height_map = height_map*mask.T
-                else: 
-                    height_map, _, calibration_factor = fcd.compute_height_map(
-                        reference, 
-                        displaced_image, 
-                        square_size, 
-                        layers
-                        )
-
-                output_path = os.path.join(output_dir, fname.replace('.tif', '_map.npy'))
+        file_list = sorted(os.listdir(displaced_dir))
+    
+        for n, fname in enumerate(file_list):
+            if not (fname.endswith('.tif') and 'reference' not in fname):
+                continue
+    
+            displaced_path = os.path.join(displaced_dir, fname)
+            displaced_image = cls.load_image(displaced_path)
+    
+            mask_applied = False
+            mask = None
+            cnt = None
+    
+            if smoothed and percentage:
+                mask, cnt = cls.mask(
+                    displaced_image,
+                    smoothed,
+                    percentage,
+                    sigma_background=sigma_background,
+                    show_mask=show_mask
+                )
+                displaced = mask.T * displaced_image
+                displaced_w = np.where(mask.T, displaced, reference)
+                image_to_use = displaced_w
+                mask_applied = True
+            else:
+                image_to_use = displaced_image
+    
+            height_map, _, calibration_factor = fcd.compute_height_map(
+                reference,
+                image_to_use,
+                square_size,
+                layers
+            )
+    
+            if mask_applied:
+                height_map *= mask.T
+    
+            base_name = fname.replace('.tif', '')
+    
+            if only in {"mask", "both"}:
+                output_path = os.path.join(output_dir, f"{base_name}_map.npy")
                 np.save(output_path, height_map)
-
-                if not calibration_saved:
-                    calibration_path = os.path.join(output_dir, 'calibration_factor.npy')
-                    np.save(calibration_path, np.array([calibration_factor]))
-                    calibration_saved = True
-                if timer:
-                    print(f"{n}/{len(os.listdir(displaced_dir))}")
+    
+            if only in {"contours", "both"} and cnt is not None:
+                sorted_cnts = sorted(cnt, key=lambda c: len(c), reverse=True)
+                cnts_top3 = sorted_cnts[:3]
+                contour_path = os.path.join(output_dir, f"{base_name}_contours.npy")
+                np.save(contour_path, np.array(cnts_top3, dtype=object))
+    
+            if not calibration_saved:
+                calibration_path = os.path.join(output_dir, 'calibration_factor.npy')
+                np.save(calibration_path, np.array([calibration_factor]))
+                calibration_saved = True
+    
+            if timer:
+                print(f"{n + 1}/{len(file_list)}")
+                    
     @staticmethod
     def video(maps_dir, calibration_factor = None):
         
@@ -316,7 +325,41 @@ class analyze:
         ani.save(output_path, writer='ffmpeg', fps=30)
 
         print(f"Saved in: {output_path}")
-
+        
+    @classmethod
+    def confined_peaks(cls, image, cnt= None, smoothed = 0, percentage = 80):
+        if cnt is None:
+            _, cnts = cls.mask(image,
+                                smoothed = smoothed, 
+                                percentage = percentage,
+                                mask_save= False,
+                                show_mask = False
+                                )
+            plt.figure()
+            plt.imshow(image)
+            for c in cnts:
+                plt.scatter(c[:, 1], c[:, 0],s = 1, c = "red")
+            cnt = cnts[1]       # TODO: select the correct index
+        
+        height, width = image.shape[:2]
+            
+        cnt = cnt.reshape(-1, 2)
+        r = cnt[:, 1]
+        c = cnt[:, 0]
+            
+        mask = np.zeros((height, width), dtype=np.uint16)
+        rr, cc = polygon(r, c, mask.shape)
+        mask[rr, cc] = 1
+            
+        labeled = label(mask)
+        props = regionprops(labeled)
+            
+        if props:
+            cy, cx = props[0].centroid
+            return cy, cx
+        else: 
+            pass
+            
 # class ImageEnhancer:
 #     def __init__(self, imagen, sigma_background=100, alpha=0):
 #         self.image = imagen
