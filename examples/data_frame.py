@@ -23,7 +23,7 @@ analyze.folder(reference_path, tif_folder, layers, 0.002, smoothed=15, percentag
 
 
 base_dir = os.path.dirname(os.path.dirname(__file__))
-maps_dir = os.path.join(base_dir, 'Pictures', 'mask', 'maps')
+maps_dir = os.path.join(base_dir,'examples', 'Pictures', 'mask', 'maps')
 
 calibration_files = [f for f in os.listdir(maps_dir) if 'calibration_factor' in f and f.endswith('.npy')]
 if not calibration_files:
@@ -81,17 +81,6 @@ frecuencias = fftfreq(N, dt)
 
 frecuencias_pos = frecuencias[:N//2]
 amplitudes_pos = np.abs(fft_vals)[:N//2]
-
-
-plt.figure(figsize=(8, 4))
-plt.plot(frecuencias_pos, amplitudes_pos)
-plt.xlabel("Frecuencia [Hz]")
-plt.ylabel("Amplitud")
-plt.title(f"Espectro temporal en el punto ({i}, {j})")
-plt.grid(True)
-plt.tight_layout()
-plt.show()
-
 
 peaks, _ = find_peaks(amplitudes_pos)
 
