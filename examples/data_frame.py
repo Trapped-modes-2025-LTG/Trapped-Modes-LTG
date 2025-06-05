@@ -7,49 +7,135 @@ import matplotlib.pyplot as plt
 import sys
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 from pydata.analyze import analyze
-
+from skimage.draw import polygon
+from skimage.measure import label, regionprops
+#%%
 base_dir = os.path.dirname(__file__)
 
-tif_folder = os.path.join(base_dir, "Pictures", "mask")
+tif_folder = os.path.join(base_dir, "Pictures", "mask", "29_05")
 
-reference_path = os.path.join(base_dir, "Pictures", "reference_df.tif")
+reference_path = os.path.join(base_dir, "Pictures", "mask", "29_05", "reference.tif")
+
+#%% Chequear parámetros de la máscara
+
+first_tif_path = None
+with os.scandir(tif_folder) as entries:
+    for entry in entries:
+        if entry.name.endswith(".tif") and entry.is_file():
+            first_tif_path = entry.path
+            break
+        
+image_for_mask = analyze.load_image(first_tif_path)        
+        
+mask, contornos = analyze.mask(image_for_mask,
+                    smoothed = 15, 
+                    percentage = 95,
+                    show_mask = True
+                    )       
+
+#%% Folder
 
 layers = [[3.2e-2,1.0003], [ 1.2e-2,1.48899], [3.4e-2,1.34], [ 80e-2 ,1.0003]]
 
-analyze.folder(reference_path, tif_folder, layers, 0.002, smoothed=15, percentage =95 , timer= False)
+analyze.folder(reference_path, tif_folder, layers, 0.002, 
+               smoothed=15, percentage =95 ,timer= True, only="both")
 
 
 
+#%%
+
+contours_folder = os.path.join(base_dir, "Pictures", "mask", "29_05", "maps")
+image_shape = (1024, 1024)  # reemplazá por el tamaño real de tus imágenes
+puntos = []
+def cargar_centros(contours_dir, image_shape):
+    files = sorted([f for f in os.listdir(contours_dir) if f.endswith("_contours.npy")])
+    total = len(files)
+
+    for i, fname in enumerate(files, 1):  # el 1 es para que empiece desde 1
+        print(f"Procesando archivo {i} de {total}: {fname}")
+        
+        path = os.path.join(contours_dir, fname)
+        contornos = np.load(path, allow_pickle=True)
+
+        if len(contornos) < 2:
+            print(f"  -> Menos de dos contornos, se omite.")
+            continue
+
+        contornos = sorted(contornos, key=lambda c: len(c), reverse=True)
+        cnt = contornos[1]
+
+        mask = np.zeros(image_shape, dtype=np.uint8)
+        r = cnt[:, 1]
+        c = cnt[:, 0]
+        rr, cc = polygon(r, c, shape=mask.shape)
+        mask[rr, cc] = 1
+
+        labeled = label(mask)
+        props = regionprops(labeled)
+        if props:
+            cy, cx = props[0].centroid
+            puntos.append((int(round(cy)), int(round(cx))))
+        else:
+            puntos.append((np.nan, np.nan))
+            print("  -> No se pudo encontrar centroide.")
+
+    print(f"\nProcesamiento completo: {len(puntos)} centros calculados.")
+    return np.array(puntos)
 
 
-base_dir = os.path.dirname(os.path.dirname(__file__))
-maps_dir = os.path.join(base_dir,'examples', 'Pictures', 'mask', 'maps')
 
-calibration_files = [f for f in os.listdir(maps_dir) if 'calibration_factor' in f and f.endswith('.npy')]
+evolucion_punto = cargar_centros(contours_folder, image_shape)
+
+#%%
+test = np.linspace(0, len(puntos), len(puntos))
+
+plt.plot(test, puntos)
+plt.title("Posición en X y en Y del centro")
+plt.show()
+
+#%%
+puntos_x = [p[0] for p in puntos]
+puntos_y = [p[1] for p in puntos]
+
+plt.plot(test, puntos_y, label='Coordenada Y del centro')
+plt.plot(test, puntos_x, label='Coordenada X del centro')
+plt.title("Posición en X y Y del centro a lo largo del tiempo")
+plt.xlabel("Tiempo (índice o segundos)")  # ajustá si test es tiempo real
+plt.ylabel("Posición (pixeles)")
+plt.legend()
+plt.grid(True)
+plt.tight_layout()
+plt.show()
+
+#%%
+
+calibration_files = [f for f in os.listdir(contours_folder) if 'calibration_factor' in f and f.endswith('.npy')]
 if not calibration_files:
     raise FileNotFoundError("No se encontró el archivo de calibration factor en la carpeta.")
 
-calibration_path = os.path.join(maps_dir, calibration_files[0])
+calibration_path = os.path.join(contours_folder, calibration_files[0])
 calibration_factor = np.load(calibration_path)
 print("Calibration factor encontrado:", calibration_factor)
 
 
-file_list = sorted([f for f in os.listdir(maps_dir) if f.endswith('.npy') and 'calibration_factor' not in f])
+file_list = sorted([f for f in os.listdir(contours_folder) if f.endswith('_map.npy') and 'calibration_factor' not in f])
 
 
 tiempos = [i * (1 / 500) for i in range(len(file_list))]
 
-data = [
-    calibration_factor * np.load(os.path.join(maps_dir, f))
+# data = [
+#     calibration_factor * np.load(os.path.join(contours_folder, f))
+#     for f in file_list
+# ]
+                                                                            # CHEQUEAR CALFACT
+data = [ np.load(os.path.join(contours_folder, f))
     for f in file_list
 ]
 
-
 df = pd.DataFrame({'tiempo': tiempos, 'data': data})
-
-
 #%%
-matriz = df.loc[0, 'data'] 
+
+matriz = df.loc[574, 'data'] # pruebo en un frame random 
 
 plt.imshow(matriz, cmap='viridis') 
 plt.colorbar(label='Altura (calibrada)')
@@ -57,98 +143,69 @@ plt.title(f"Matriz en t = {df.loc[0, 'tiempo']:.3f} s")
 plt.tight_layout()
 plt.show()
 
+#%%
 
-# coordenadas del punto a seguir
-i, j = 411,633
+matriz = df.loc[573, 'data'] 
+x, y = puntos[0]  # Recordá: (fila, columna) 
 
-evolucion_punto = np.array([frame[i, j] for frame in df['data']])
+plt.imshow(matriz, cmap='viridis')
+plt.plot(x, y, 'ro')  # x en eje horizontal, y en vertical
+plt.colorbar(label='Altura (calibrada)')
+plt.title(f"Matriz en t = {df.loc[573, 'tiempo']:.3f} s")
+plt.tight_layout()
+plt.show()
 
 
-plt.plot(df['tiempo'], evolucion_punto)
-plt.xlabel("Tiempo [s]")
-plt.ylabel(f"Valor en ({i}, {j})")
-plt.title(f"Evolución temporal del punto ({i}, {j})")
+#%%
+
+puntos_int = np.round(puntos).astype(int)
+
+# Invertimos columna y fila para acceder a frame[y, x] como frame[fila, columna]
+evolucion = np.array([
+    frame[col, row]  # invertido a propósito
+    for frame, (row, col) in zip(df['data'], puntos_int)
+])
+
+
+
+#%%
+
+plt.plot(test / 500, evolucion, label="Altura en el centro")  # dividís por 500 si eso da el tiempo en segundos
+plt.title('Evolución temporal del centro del círculo')
+plt.xlabel("Tiempo (s)")
+plt.ylabel("Altura (calibrada)")
+#plt.legend()
 plt.grid(True)
 plt.tight_layout()
 plt.show()
 
-N = len(evolucion_punto)
-dt = df['tiempo'][1] - df['tiempo'][0]
+#%%
+# ESPECTROGRAMA DEL CENTRO
 
+from scipy.signal import spectrogram
 
-fft_vals = fft(evolucion_punto)
-frecuencias = fftfreq(N, dt)
+# df['tiempo']  --> array de tiempos
+# evolucion --> señal 1D del valor en (i(t), j(t)) en el tiempo
 
-frecuencias_pos = frecuencias[:N//2]
-amplitudes_pos = np.abs(fft_vals)[:N//2]
+# Parámetros de la señal
+fs = 500  # frecuencia de muestreo en Hz (ya que haces i * 1/500)
 
-peaks, _ = find_peaks(amplitudes_pos)
+# Espectrograma
+nperseg =128
+f, t, Sxx = spectrogram(evolucion, fs=fs, nperseg=nperseg, noverlap= 3*nperseg // 4)
 
-
-pico_principal_idx = peaks[np.argmax(amplitudes_pos[peaks])]
-frecuencia_dominante = frecuencias_pos[pico_principal_idx]
-amplitud_dominante = amplitudes_pos[pico_principal_idx]
-
-
-plt.figure(figsize=(8, 4))
-plt.plot(frecuencias_pos, amplitudes_pos, label='Espectro')
-plt.plot(frecuencia_dominante, amplitud_dominante, 'ro', label=f'Pico principal: {frecuencia_dominante:.2f} Hz')
-
-plt.xlabel("Frecuencia [Hz]")
-plt.ylabel("Amplitud")
-plt.title(f"Espectro en el punto ({i}, {j})")
-plt.legend()
-plt.grid(True)
+#Visualización
+plt.pcolormesh(t, f, 10 * np.log10(Sxx), shading='gouraud', cmap='inferno')
+plt.colorbar(label='Densidad espectral de potencia (dB/Hz)')
+plt.ylabel('Frecuencia [Hz]')
+plt.xlabel('Tiempo [s]')
+plt.title("Espectrograma del centro")
 plt.tight_layout()
 plt.show()
 
-# n = 3  # numero de modos a guardar
-# T = len(df)
-# Nx, Ny = df['data'][0].shape
-# print(f"Datos cargados desde df: T={T}, Nx={Nx}, Ny={Ny}")
 
-# amplitudes_n = np.zeros((T, n))
-# fases_n = np.zeros((T, n))
-# modos_indices = None
+#%%
+contours_folder = os.path.join(base_dir, "Pictures", "mask", "29_05", "maps")
+#%%
+analyze.video(contours_folder)
 
-# for t in range(T):
-#     matriz = df['data'][t]
-
-#     # FFT2 centrada
-#     fft2 = np.fft.fft2(matriz)
-#     fft2_shifted = np.fft.fftshift(fft2)
-
-#     # Aplanar
-#     amplitudes_flat = np.abs(fft2_shifted).flatten()
-#     fases_flat = np.angle(fft2_shifted).flatten()
-
-#     if t == 0:
-#         # Elegimos los n modos con mayor amplitud en t=0
-#         indices_ordenados = np.argsort(amplitudes_flat)[::-1]
-#         modos_indices = indices_ordenados[:n]
-
-#     # Guardamos amplitudes y fases de los mismos n modos
-#     amplitudes_n[t, :] = amplitudes_flat[modos_indices]
-#     fases_n[t, :] = fases_flat[modos_indices]
-
-# plt.figure(figsize=(10, 5))
-# for i in range(n):
-#     plt.plot(df['tiempo'], amplitudes_n[:, i], label=f"Modo {i}")
-# plt.xlabel("Tiempo [s]")
-# plt.ylabel("Amplitud")
-# plt.title(f"Evolución de los {n} modos principales")
-# plt.legend()
-# plt.grid(True)
-# plt.tight_layout()
-# plt.show()
-
-# plt.figure(figsize=(10, 5))
-# for i in range(n-1):
-#     plt.plot(df['tiempo'], fases_n[:, i], label=f"Modo {i}")
-# plt.xlabel("Tiempo [s]")
-# plt.ylabel("Fase [rad]")
-# plt.title(f"Evolución de las fases de los {n} modos principales")
-# plt.legend()
-# plt.grid(True)
-# plt.tight_layout()
-# plt.show()
