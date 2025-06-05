@@ -276,8 +276,9 @@ class analyze:
                 print(f"{n + 1}/{len(file_list)}")
                     
     @staticmethod
-    def video(maps_dir, calibration_factor = None):
-        
+    def video(maps_dir, calibration_factor=None, frame_final=300, n_extra_frames=20):
+    
+
         if calibration_factor is None:
             calibration_path = os.path.join(maps_dir, 'calibration_factor.npy')
             if not os.path.isfile(calibration_path):
@@ -285,45 +286,48 @@ class analyze:
             calibration_factor = np.load(calibration_path).item()
         elif not isinstance(calibration_factor, (float, int)):
             raise TypeError("calibration_factor must be an integer or float")
-            
-        file_list = sorted([f for f in os.listdir(maps_dir) if f.endswith('.npy') 
-                            and 'calibration_factor' not in f])
+    
+        file_list = sorted([f for f in os.listdir(maps_dir) if f.endswith('_map.npy')])
         df = pd.DataFrame({'filename': file_list})
-
         df['full_path'] = df['filename'].apply(lambda x: os.path.join(maps_dir, x))
         df['data'] = df['full_path'].apply(np.load)
-
-        min_val = min([np.min(data) for data in df['data']])
-        max_val = max([np.max(data) for data in df['data']])
-
+    
+        min_val = min(np.min(d) for d in df['data'])
+        max_val = max(np.max(d) for d in df['data'])
+    
         height_map = df['data'].iloc[0]
         n_rows, n_cols = height_map.shape
         x = np.linspace(0, n_cols, n_cols) * calibration_factor
         y = np.linspace(0, n_rows, n_rows) * calibration_factor
         x_mesh, y_mesh = np.meshgrid(x, y)
-
+    
         fig, ax = plt.subplots()
-        im = ax.contourf(x_mesh * 1e3, y_mesh * 1e3, height_map * 1e3, 100,cmap='magma', vmin=min_val * 1e3, vmax=max_val * 1e3)
+        im = ax.contourf(x_mesh * 1e3, y_mesh * 1e3, height_map * 1e3, 100, cmap='magma',
+                         vmin=min_val * 1e3, vmax=max_val * 1e3)
         cbar = fig.colorbar(im, ax=ax)
         cbar.set_label('Height [mm]', rotation=270, labelpad=15)
         ax.set_xlabel('x [mm]')
         ax.set_ylabel('y [mm]')
         ax.set_aspect("equal")
-
+    
         def update(i):
+            if i >= len(df):
+                i = min(frame_final, len(df) - 1)
             ax.clear()
-            cont = ax.contourf(x_mesh * 1e3, y_mesh * 1e3, df['data'].iloc[i] * 1e3, 100,cmap='magma', vmin=min_val * 1e3, vmax=max_val * 1e3)
+            cont = ax.contourf(x_mesh * 1e3, y_mesh * 1e3, df['data'].iloc[i] * 1e3, 100, cmap='magma',
+                               vmin=min_val * 1e3, vmax=max_val * 1e3)
             ax.set_title(f'Frame {i}')
             ax.set_xlabel('x [mm]')
             ax.set_ylabel('y [mm]')
             ax.set_aspect("equal")
             return cont.collections
-
-        ani = animation.FuncAnimation(fig, update, frames=len(df), blit=False, interval=100)
+    
+        total_frames = len(df) + n_extra_frames
+        ani = animation.FuncAnimation(fig, update, frames=total_frames, blit=False, interval=100)
+    
         base_dir = os.path.dirname(__file__)
         output_path = os.path.join(base_dir, 'video.mp4')
         ani.save(output_path, writer='ffmpeg', fps=30)
-
         print(f"Saved in: {output_path}")
         
     @classmethod
