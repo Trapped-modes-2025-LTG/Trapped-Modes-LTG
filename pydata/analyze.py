@@ -584,7 +584,7 @@ class analyze:
             pass
      
     @staticmethod
-    def block_amplitude(map_folder, f0=None, tasa=500, mode=1, num_blocks=64, block_index=0, t_limit=None):
+    def block_amplitude(map_folder, f0=None, tasa=500, mode=1, num_blocks=64, block_index=0, t_limit=None, neighbors = None):
 
         file_list = sorted([f for f in os.listdir(map_folder) if f.endswith('_map.npy') and 'calibration_factor' not in f])
         file_list = file_list[:t_limit]
@@ -592,10 +592,13 @@ class analyze:
 
         initial_map = np.load(os.path.join(map_folder, file_list[0]))
         H, W = initial_map.shape
-
+        
         mask_ceros = (initial_map == 0)
-        vecindad = maximum_filter(mask_ceros.astype(int), size=61)
-        mask_validos = (~mask_ceros) & (vecindad == 0)
+        if neighbors:
+            vecindad = maximum_filter(mask_ceros.astype(int), size=61)
+            mask_validos = (~mask_ceros) & (vecindad == 0)
+        else:
+            mask_validos = mask_ceros
 
 
         blocks_per_row = int(np.sqrt(num_blocks))
@@ -625,18 +628,16 @@ class analyze:
         fft_vals = np.fft.fft(maps, axis=-1)
         fft_freqs = np.fft.fftfreq(N, d=dt)
 
-        # Solo frecuencias positivas
         pos_freqs = fft_freqs >= 0
         fft_vals = fft_vals[:, :, pos_freqs]
         fft_freqs = fft_freqs[pos_freqs]
 
-        # === Determinar frecuencia principal ===
         if f0 is None:
             # Promediar magnitud sobre todos los píxeles para robustez
             mean_spectrum = np.nanmean(np.abs(fft_vals), axis=(0, 1))
             peaks, _ = find_peaks(mean_spectrum)
             if len(peaks) == 0:
-                raise ValueError("No se encontraron picos en el espectro.")
+                return np.zeros(mode), np.full((ny, nx, mode), None, dtype=object), np.full((ny, nx, mode), None, dtype=object)
             max_peak_index = peaks[np.argmax(mean_spectrum[peaks])]
             f0 = fft_freqs[max_peak_index]
 
