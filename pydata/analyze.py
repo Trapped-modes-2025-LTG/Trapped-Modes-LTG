@@ -582,76 +582,35 @@ class analyze:
             return cy, cx
         else: 
             pass
-        
-    
-    @staticmethod
-    def discrete_fft(signal, k):
-        """Discrete Fourier Transform"""
-        N = len(signal)
-        n = np.arange(N)
-        return np.sum(signal * np.exp(-2j * np.pi * k * n / N)) / N
-
-    @staticmethod
-    def inverse_discrete_fft(signal):
-        """Inverse Discrete Fourier Transform"""
-        N = len(signal)
-        argument = 2j * np.pi / N * np.arange(N)
-        h = np.array([np.sum(signal * np.exp(k * argument)) for k in range(N)])
-        return h
-
-    @staticmethod
-    def amplitude_spectrum(components, fs=1):
-        """Spectrum of Fourier amplitudes.
-        
-        Parameters:
-        - components: Fourier-transformed signal
-        - fs: Sampling frequency
-        """
-        N = len(components)
-        power_spectrum = 2 * np.abs(components)
-        power_spectrum[0] = 0.5 * power_spectrum[0]  # DC term
-        freqs = np.linspace(0, fs / 2, N // 2)
-        return freqs, power_spectrum[:N // 2]
      
     @staticmethod
-    def amplitud_bloque(map_folder, f0=None, tasa=500, mode=1, num_blocks=64, block_index=0, t_limit=None):
-        # === Listar archivos ===
+    def block_amplitude(map_folder, f0=None, tasa=500, mode=1, num_blocks=64, block_index=0, t_limit=None):
+
         file_list = sorted([f for f in os.listdir(map_folder) if f.endswith('_map.npy') and 'calibration_factor' not in f])
+        file_list = file_list[:t_limit]
 
-        if t_limit is not None:
-            file_list = file_list[:t_limit]
 
-        # === Cargar mapa inicial ===
         initial_map = np.load(os.path.join(map_folder, file_list[0]))
         H, W = initial_map.shape
 
-        # === Máscara global ===
         mask_ceros = (initial_map == 0)
         vecindad = maximum_filter(mask_ceros.astype(int), size=61)
         mask_validos = (~mask_ceros) & (vecindad == 0)
 
-        # === Definir grilla ===
+
         blocks_per_row = int(np.sqrt(num_blocks))
         block_size = H // blocks_per_row
 
-        # === Ubicación del bloque ===
         i = block_index // blocks_per_row
         j = block_index % blocks_per_row
 
-        # === Leer bloque de cada mapa ===
+
         maps = []
         for f in file_list:
             m = np.load(os.path.join(map_folder, f))
 
-            block = m[
-                i*block_size : (i+1)*block_size,
-                j*block_size : (j+1)*block_size
-            ]
-
-            mask_block = mask_validos[
-                i*block_size : (i+1)*block_size,
-                j*block_size : (j+1)*block_size
-            ]
+            block = m[i*block_size : (i+1)*block_size,j*block_size : (j+1)*block_size]
+            mask_block = mask_validos[i*block_size : (i+1)*block_size,j*block_size : (j+1)*block_size]
 
             block_masked = np.where(mask_block, block, np.nan)
             maps.append(block_masked)
@@ -694,7 +653,7 @@ class analyze:
             amps[:, :, k] = 2 * np.abs(harmonic_vals) / N  # amplitud real (factor 2 por simetría)
             phases[:, :, k] = np.angle(harmonic_vals)
 
-        return amps, phases
+        return harmonics, amps, phases
     
     
     
