@@ -584,7 +584,7 @@ class analyze:
             pass
      
     @staticmethod
-    def block_amplitude(map_folder, f0=None, tasa=500, mode=1, num_blocks=64, block_index=0, t_limit=None, neighbors = None):
+    def block_amplitude(map_folder, f0=None, tasa=500, mode=1, num_blocks=64, block_index=0, t_limit=None, neighbor = None):
 
         file_list = sorted([f for f in os.listdir(map_folder) if f.endswith('_map.npy') and 'calibration_factor' not in f])
         file_list = file_list[:t_limit]
@@ -594,12 +594,8 @@ class analyze:
         H, W = initial_map.shape
         
         mask_ceros = (initial_map == 0)
-        if neighbors:
-            vecindad = maximum_filter(mask_ceros.astype(int), size=61)
-            mask_validos = (~mask_ceros) & (vecindad == 0)
-        else:
-            mask_validos = mask_ceros
-
+        
+        mask_validos = ~mask_ceros
 
         blocks_per_row = int(np.sqrt(num_blocks))
         block_size = H // blocks_per_row
@@ -655,17 +651,6 @@ class analyze:
             phases[:, :, k] = np.angle(harmonic_vals)
 
         return harmonics, amps, phases
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
     
     
     # if not cnt1[-1][0] == cnt1[0][0] or cnt1[-1][1] == cnt1[0][1]:
