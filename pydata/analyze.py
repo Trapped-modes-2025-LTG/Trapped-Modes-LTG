@@ -18,6 +18,8 @@ import cv2
 from skimage import io
 from skimage.draw import polygon
 from skimage.measure import regionprops, label,find_contours
+from scipy.ndimage import maximum_filter
+from scipy.signal import find_peaks
 
 class analyze:
     @classmethod
@@ -76,38 +78,39 @@ class analyze:
                 camino_x0 = np.linspace(x0, x_stop, int(x_stop - x0) + 1)
                 camino_y0 = np.full_like(camino_x0, y0)
             else:
-                x_stop = maxim
-                camino_x0 = np.linspace(x0, x_stop, int(x_stop - x0) + 1)
-                camino_y0 = np.full_like(camino_x0, y0)
+                pass
+            #     x_stop = maxim
+            #     camino_x0 = np.linspace(x0, x_stop, int(x_stop - x0) + 1)
+            #     camino_y0 = np.full_like(camino_x0, y0)
         
-                found = False
-                segmento_x = []
-                segmento_y = []
+            #     found = False
+            #     segmento_x = []
+            #     segmento_y = []
         
-                if y0 == maxim - 1:
-                    for dy in range(1, maxim):
-                        new_y = y0 - dy
-                        if new_y < 0:
-                            break
-                        if binary[new_y, x_stop] != 0:
-                            segmento_x = [x_stop] * (dy + 1)
-                            segmento_y = list(range(y0, new_y - 1, -1))
-                            found = True
-                            break
-                else:
-                    for dy in range(1, height):
-                        new_y = y0 + dy
-                        if new_y >= height:
-                            break
-                        if binary[new_y, x_stop] != 0:
-                            segmento_x = [x_stop] * (dy + 1)
-                            segmento_y = list(range(y0, new_y + 1))
-                            found = True
-                            break
+            #     if y0 == maxim - 1:
+            #         for dy in range(1, maxim):
+            #             new_y = y0 - dy
+            #             if new_y < 0:
+            #                 break
+            #             if binary[new_y, x_stop] != 0:
+            #                 segmento_x = [x_stop] * (dy + 1)
+            #                 segmento_y = list(range(y0, new_y - 1, -1))
+            #                 found = True
+            #                 break
+            #     else:
+            #         for dy in range(1, height):
+            #             new_y = y0 + dy
+            #             if new_y >= height:
+            #                 break
+            #             if binary[new_y, x_stop] != 0:
+            #                 segmento_x = [x_stop] * (dy + 1)
+            #                 segmento_y = list(range(y0, new_y + 1))
+            #                 found = True
+            #                 break
         
-                if found:
-                    camino_x0 = np.concatenate([camino_x0, segmento_x])
-                    camino_y0 = np.concatenate([camino_y0, segmento_y])
+            #     if found:
+            #         camino_x0 = np.concatenate([camino_x0, segmento_x])
+            #         camino_y0 = np.concatenate([camino_y0, segmento_y])
         
             plt.plot(camino_x0, camino_y0, lw=2, c="lime", zorder=10)
             pass
@@ -117,7 +120,7 @@ class analyze:
     def correct_contours(cls, contornos, binary):
         contornos = sorted(contornos, key=lambda c: len(c), reverse=True)
         
-        threshold = 500 # TODO: ver como calcular esto
+        threshold = 300 # TODO: ver como calcular esto
         
         inner_contours = []
         out_contours = []
@@ -197,7 +200,7 @@ class analyze:
  
             return cnt1, cnt2
         
-        elif len(out_contours) > 1:
+        elif len(out_contours) == 2:
             
             ps = []         # [  [yi0, xi0], [yf0, xf0]  ,  [yi1, xi1], [yf1, xf1]  ]
             # plt.figure()
@@ -216,7 +219,6 @@ class analyze:
                 plt.scatter(c[:, 1][-1], c[:, 0][-1], s = 100, c = "black")
                 
             y0, x0 = ps[0]
-            print(ps)
             
             side_p0 = cls.side(x0, y0, binary)
             
@@ -230,8 +232,6 @@ class analyze:
             indices_orden = np.argsort(angulos)
             resto_ordenado = resto[indices_orden]
             ps_o = np.vstack([p0, resto_ordenado])
-            
-            print(ps_o)
             
             if side_p0 == "right":
                 pass
@@ -365,7 +365,8 @@ class analyze:
         binary = (smooth > threshold).astype(np.uint8) * 255
         contornos = _find_large_contours(binary)
         imagen_contorno = binary
-        
+        if show_mask:
+            _mostrar_resultados(binary, contornos, imagen_contorno)
         cnts = cls.correct_contours(contornos, binary)
     
         mask_shape = image.shape[:2]  
@@ -581,7 +582,133 @@ class analyze:
             return cy, cx
         else: 
             pass
-        # if not cnt1[-1][0] == cnt1[0][0] or cnt1[-1][1] == cnt1[0][1]:
+        
+    
+    @staticmethod
+    def discrete_fft(signal, k):
+        """Discrete Fourier Transform"""
+        N = len(signal)
+        n = np.arange(N)
+        return np.sum(signal * np.exp(-2j * np.pi * k * n / N)) / N
+
+    @staticmethod
+    def inverse_discrete_fft(signal):
+        """Inverse Discrete Fourier Transform"""
+        N = len(signal)
+        argument = 2j * np.pi / N * np.arange(N)
+        h = np.array([np.sum(signal * np.exp(k * argument)) for k in range(N)])
+        return h
+
+    @staticmethod
+    def amplitude_spectrum(components, fs=1):
+        """Spectrum of Fourier amplitudes.
+        
+        Parameters:
+        - components: Fourier-transformed signal
+        - fs: Sampling frequency
+        """
+        N = len(components)
+        power_spectrum = 2 * np.abs(components)
+        power_spectrum[0] = 0.5 * power_spectrum[0]  # DC term
+        freqs = np.linspace(0, fs / 2, N // 2)
+        return freqs, power_spectrum[:N // 2]
+     
+    @staticmethod
+    def amplitud_bloque(map_folder, f0=None, tasa=500, mode=1, num_blocks=64, block_index=0, t_limit=None):
+        # === Listar archivos ===
+        file_list = sorted([f for f in os.listdir(map_folder) if f.endswith('_map.npy') and 'calibration_factor' not in f])
+
+        if t_limit is not None:
+            file_list = file_list[:t_limit]
+
+        # === Cargar mapa inicial ===
+        initial_map = np.load(os.path.join(map_folder, file_list[0]))
+        H, W = initial_map.shape
+
+        # === Máscara global ===
+        mask_ceros = (initial_map == 0)
+        vecindad = maximum_filter(mask_ceros.astype(int), size=61)
+        mask_validos = (~mask_ceros) & (vecindad == 0)
+
+        # === Definir grilla ===
+        blocks_per_row = int(np.sqrt(num_blocks))
+        block_size = H // blocks_per_row
+
+        # === Ubicación del bloque ===
+        i = block_index // blocks_per_row
+        j = block_index % blocks_per_row
+
+        # === Leer bloque de cada mapa ===
+        maps = []
+        for f in file_list:
+            m = np.load(os.path.join(map_folder, f))
+
+            block = m[
+                i*block_size : (i+1)*block_size,
+                j*block_size : (j+1)*block_size
+            ]
+
+            mask_block = mask_validos[
+                i*block_size : (i+1)*block_size,
+                j*block_size : (j+1)*block_size
+            ]
+
+            block_masked = np.where(mask_block, block, np.nan)
+            maps.append(block_masked)
+
+        maps = np.stack(maps, axis=0)  # (N, block_size, block_size)
+        maps = np.transpose(maps, (1, 2, 0))  # (block_size, block_size, N)
+
+        ny, nx, N = maps.shape
+        dt = 1 / tasa
+
+        # === FFT ===
+        fft_vals = np.fft.fft(maps, axis=-1)
+        fft_freqs = np.fft.fftfreq(N, d=dt)
+
+        # Solo frecuencias positivas
+        pos_freqs = fft_freqs >= 0
+        fft_vals = fft_vals[:, :, pos_freqs]
+        fft_freqs = fft_freqs[pos_freqs]
+
+        # === Determinar frecuencia principal ===
+        if f0 is None:
+            # Promediar magnitud sobre todos los píxeles para robustez
+            mean_spectrum = np.nanmean(np.abs(fft_vals), axis=(0, 1))
+            peaks, _ = find_peaks(mean_spectrum)
+            if len(peaks) == 0:
+                raise ValueError("No se encontraron picos en el espectro.")
+            max_peak_index = peaks[np.argmax(mean_spectrum[peaks])]
+            f0 = fft_freqs[max_peak_index]
+
+        # === Índices de armónicos ===
+        harmonics = [f0 * n for n in range(1, mode+1)]
+        indices = [np.argmin(np.abs(fft_freqs - f)) for f in harmonics]
+
+        # === Amplitud y fase para cada armónico ===
+        amps = np.zeros((ny, nx, mode))
+        phases = np.zeros((ny, nx, mode))
+
+        for k, idx in enumerate(indices):
+            harmonic_vals = fft_vals[:, :, idx]
+            amps[:, :, k] = 2 * np.abs(harmonic_vals) / N  # amplitud real (factor 2 por simetría)
+            phases[:, :, k] = np.angle(harmonic_vals)
+
+        return amps, phases
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    # if not cnt1[-1][0] == cnt1[0][0] or cnt1[-1][1] == cnt1[0][1]:
         
         #     p1 = cnt1[0]
         #     p2 = cnt1[-1]
