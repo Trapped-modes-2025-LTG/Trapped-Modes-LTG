@@ -45,6 +45,7 @@ image = analyze.load_image(path)
 mask, contornos = analyze.mask(image,
                     smoothed = 15, 
                     percentage = 95,
+                    mask_save= True,
                     show_mask = False
                     )
 
@@ -65,11 +66,14 @@ square_size = 0.002
 
 displaced = np.where((mask.T),displaced, reference)
 
-plt.figure()
-plt.imshow(displaced-reference)
-
 values = fcd.compute_height_map(reference, displaced, square_size, layers)
-plt.figure()
-plt.imshow(values[0])
-plt.colorbar()
 
+fig, ax = plt.subplots(1,2, figsize = (10,6))
+ax[0].imshow(displaced)
+for c in contornos:
+    ax[0].scatter(c[:, 1], c[:, 0], s=1, c='cyan')
+ax[1].imshow(values[0]*mask.T)
+#plt.savefig("mascara_fcd.pdf", bbox_inches = "tight")
+
+#%%
+analyze.confined_peaks(values[0], contornos[1])
