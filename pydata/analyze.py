@@ -620,7 +620,6 @@ class analyze:
         ny, nx, N = maps.shape
         dt = 1 / tasa
 
-        # === FFT ===
         fft_vals = np.fft.fft(maps, axis=-1)
         fft_freqs = np.fft.fftfreq(N, d=dt)
 
@@ -638,16 +637,19 @@ class analyze:
             f0 = fft_freqs[max_peak_index]
 
         # === Índices de armónicos ===
-        harmonics = [f0 * n for n in range(1, mode+1)]
+        harmonics = [f0 * n for n in range(0, mode)]
         indices = [np.argmin(np.abs(fft_freqs - f)) for f in harmonics]
 
         # === Amplitud y fase para cada armónico ===
-        amps = np.zeros((ny, nx, mode))
-        phases = np.zeros((ny, nx, mode))
+        amps = np.zeros((ny, nx, mode+1))
+        phases = np.zeros((ny, nx, mode+1))
 
         for k, idx in enumerate(indices):
             harmonic_vals = fft_vals[:, :, idx]
-            amps[:, :, k] = 2 * np.abs(harmonic_vals) / N  # amplitud real (factor 2 por simetría)
+            if k == 0:  
+                amps[:, :, k] = np.abs(harmonic_vals) / N
+            else:
+                amps[:, :, k] = 2 * np.abs(harmonic_vals) / N
             phases[:, :, k] = np.angle(harmonic_vals)
 
         return harmonics, amps, phases
