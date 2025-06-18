@@ -584,7 +584,7 @@ class analyze:
             pass
      
     @staticmethod
-    def block_amplitude(map_folder, f0=None, tasa=500, mode=1, num_blocks=64, block_index=0, t_limit=None, neighbor = None):
+    def block_amplitude(map_folder, f0=None, tasa=500, mode=1, num_blocks=64, block_index=0, t_limit=None, neighbor = None, zero = 0):
 
         file_list = sorted([f for f in os.listdir(map_folder) if f.endswith('_map.npy') and 'calibration_factor' not in f])
         file_list = file_list[:t_limit]
@@ -606,7 +606,7 @@ class analyze:
 
         maps = []
         for f in file_list:
-            m = np.load(os.path.join(map_folder, f))
+            m = np.load(os.path.join(map_folder, f)) - zero
 
             block = m[i*block_size : (i+1)*block_size,j*block_size : (j+1)*block_size]
             mask_block = mask_validos[i*block_size : (i+1)*block_size,j*block_size : (j+1)*block_size]
