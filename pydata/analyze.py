@@ -555,8 +555,8 @@ class analyze:
             _, cnts = cls.mask(image,
                                 smoothed = smoothed, 
                                 percentage = percentage,
-                                mask_save= False,
-                                show_mask = False
+                                # mask_save= False,
+                                # show_mask = False
                                 )
             plt.figure()
             plt.imshow(image)
@@ -816,3 +816,4 @@ class analyze:
 #     suavizado=20,
 #     percentil_contornos=30
 # )        
+    
