@@ -653,6 +653,156 @@ class analyze:
             phases[:, :, k] = np.angle(harmonic_vals)
 
         return harmonics, amps, phases
+
+    @staticmethod
+    def decay(MODE, image_center, cut, distance):
+        '''
+        Parameters
+        ----------
+        MODE : np.array
+            the amplitude matrix of the mode to analyze.
+        image_center : str  
+            Path to the image file (e.g., a TIFF image) from which the 
+            geometric center is automatically determined  
+            for the polar coordinate transformation. 
+            The center is computed using `analyze.confined_peaks`.
+        cut : int
+            Radial index from which the profile is cropped before peak detection.
+        distance : int
+            Distance between peaks as parameter for find_peaks.
+
+        Returns
+        -------
+        A : float  
+            Slope of the linear fit in log scale, corresponding to the exponential decay rate.
+
+        dA : float  
+            Standard error associated with the slope A.
+
+        B : float  
+            Intercept of the linear fit in log scale.
+
+        dB : float  
+            Standard error associated with the intercept B.
+        '''
+        cy, cx = analyze.confined_peaks(analyze.load_image(image_center), smoothed = 15, percentage= 90)
+        plt.scatter(cy, cx, s=20, color='red')
+        center = tuple(map(int, (cx, cy)))
+        
+        polar = warp_polar(MODE, center=center, scaling='linear')
+        
+        pnan = np.where(polar != 0, polar, np.nan)
+        
+        fig, axes = plt.subplots(1, 2, figsize=(8, 6))
+
+        # Lista de imágenes y sus transformadas
+        originals = [MODE]
+        polars = [pnan]
+
+        axes[0].imshow(originals[0], cmap='inferno')
+        axes[0].scatter(*center[::-1], c='r', s=10)
+        axes[0].set_title("Imagen original")
+        axes[0].axis('off')
+
+        axes[1].imshow(polars[0], cmap='inferno', aspect='auto')
+        axes[1].set_title("Coordenadas polares")
+        axes[1].set_xlabel("r")
+        axes[1].set_ylabel("θ")
+
+        plt.tight_layout()
+        plt.show()
+        
+        vals = []
+        weights = []
+
+        for i in range(pnan.shape[1]):
+            datos_validos = ~np.isnan(pnan[:, i])
+            val = np.nanmean(pnan[:, i])
+            weight = np.sum(datos_validos)  # calculo promedio y el peso de cada radio
+            vals.append(val)
+            weights.append(weight)
+            
+            
+        R = np.linspace(1, pnan.shape[1] , pnan.shape[1])
+        vals = np.array(vals)
+        weights = np.array(weights)
+
+        plt.figure(figsize=(8, 5))
+        sc = plt.scatter(R, vals, c=weights, cmap='viridis', s=30 + 70 * (weights / np.max(weights)))
+        plt.colorbar(sc, label="Cantidad de datos válidos (peso)")
+        plt.xlabel("r (pixeles)")
+        plt.ylabel("Promedio en θ")
+        plt.title("Perfil radial promedio ponderado")
+        plt.grid(True)
+        plt.show()
+        
+        
+        valores_recortados = vals[cut:]
+        picos_relativos, _ = find_peaks(valores_recortados, distance = distance)
+
+        # Índices absolutos para todo valores33
+        picos_indices = picos_relativos + cut
+
+        picos_r = R[picos_indices] 
+        picos_valores = vals[picos_indices]
+        picos_pesos = weights[picos_indices]
+
+
+        sigma = 1 / np.sqrt(picos_pesos)
+        sigma = np.where(picos_pesos == 0, 1e6, sigma)
+
+        R_rec = R[cut:]
+        
+        plt.figure(figsize=(10, 4))
+        plt.plot(np.arange(cut, len(vals)), valores_recortados, label='Valores recortados')
+        plt.plot(picos_indices, vals[picos_indices], 'ro', label='Picos detectados')
+        plt.xlabel('Índice')
+        plt.ylabel('Valor')
+        plt.title('Picos detectados')
+        plt.legend()
+        plt.grid(True)
+        plt.tight_layout()
+        plt.show()
+        
+        factor = 1
+        picos_valores_scaled = picos_valores * factor
+        sigma_scaled = sigma * factor
+
+        picos_valores_log = np.log(picos_valores_scaled)
+        sigma_log = sigma_scaled / picos_valores_scaled 
+        sigma = sigma_scaled
+        
+        def modelo_lin(x, A, B):
+            return A*x + B
+
+
+        popt, pcov = curve_fit(modelo_lin, picos_r, picos_valores_log, p0=[0.0001, 0.0], sigma=sigma, absolute_sigma=True)
+
+
+
+        y_fit = modelo_lin(R_rec, *popt)
+
+        A, B = popt
+
+        dA, dB = np.sqrt(np.diag(pcov))
+
+        plt.figure(figsize=(10, 6))
+        #plt.plot(Rr_rec, valores_recortados, label='Perfil radial')
+        plt.scatter(picos_r, picos_valores_log, color='darkmagenta', s=80, label='Picos detectados')
+
+        plt.plot(R_rec, y_fit, '--',
+                 label=f'Ajuste exponencial:\nk={A:.6f}±0.00038, B={B:.6f}' ,color='darkcyan')
+        plt.errorbar(picos_r, picos_valores_log, yerr=sigma, fmt='o', color='darkmagenta', label='Picos detectados ± sigma')
+
+        plt.xlabel('r (pixeles)')
+        plt.ylabel('Promedio en θ')
+        plt.title('Ajuste ponderado con curve_fit usando pesos')
+        plt.legend()
+        plt.grid(True)
+        plt.tight_layout()
+        plt.show()
+        
+        return A, dA, B, dB
     
     
     # if not cnt1[-1][0] == cnt1[0][0] or cnt1[-1][1] == cnt1[0][1]:
