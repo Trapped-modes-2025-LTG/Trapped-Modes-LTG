@@ -747,8 +747,7 @@ class analyze:
         picos_valores = vals[picos_indices]
         picos_pesos = weights[picos_indices]
 
-
-        sigma = 1 / np.sqrt(picos_pesos)
+        sigma = np.std(picos_valores)/ np.sqrt(picos_pesos)
         sigma = np.where(picos_pesos == 0, 1e6, sigma)
 
         R_rec = R[cut:]
@@ -776,7 +775,7 @@ class analyze:
             return A*x + B
 
 
-        popt, pcov = curve_fit(modelo_lin, picos_r, picos_valores_log, p0=[0.0001, 0.0], sigma=sigma, absolute_sigma=True)
+        popt, pcov = curve_fit(modelo_lin, picos_r, picos_valores_log, p0=[0.0001, 0.0], sigma=sigma_log, absolute_sigma=True)
 
 
 
@@ -792,7 +791,7 @@ class analyze:
 
         plt.plot(R_rec, y_fit, '--',
                  label=f'Ajuste exponencial:\nk={A:.6f}±0.00038, B={B:.6f}' ,color='darkcyan')
-        plt.errorbar(picos_r, picos_valores_log, yerr=sigma, fmt='o', color='darkmagenta', label='Picos detectados ± sigma')
+        plt.errorbar(picos_r, picos_valores_log, yerr=sigma_log, fmt='o', color='darkmagenta', label='Picos detectados ± sigma')
 
         plt.xlabel('r (pixeles)')
         plt.ylabel('Promedio en θ')
