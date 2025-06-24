@@ -555,8 +555,6 @@ class analyze:
             _, cnts = cls.mask(image,
                                 smoothed = smoothed, 
                                 percentage = percentage,
-                                mask_save= False,
-                                show_mask = False
                                 )
             plt.figure()
             plt.imshow(image)
@@ -582,43 +580,91 @@ class analyze:
             return cy, cx
         else: 
             pass
-     
-    @staticmethod
-    def block_amplitude(map_folder, f0=None, tasa=500, mode=1, num_blocks=64, block_index=0, t_limit=None, neighbor = None):
-
-        file_list = sorted([f for f in os.listdir(map_folder) if f.endswith('_map.npy') and 'calibration_factor' not in f])
+    
+    @classmethod
+    def block_split(cls,map_folder, t_limit=None, num_blocks=64, block_index=0):
+        file_list = sorted([
+            f for f in os.listdir(map_folder)
+            if f.endswith('_map.npy') and 'calibration_factor' not in f
+        ])
         file_list = file_list[:t_limit]
-
-
+    
         initial_map = np.load(os.path.join(map_folder, file_list[0]))
         H, W = initial_map.shape
-        
+    
         mask_ceros = (initial_map == 0)
-        
         mask_validos = ~mask_ceros
-
+    
         blocks_per_row = int(np.sqrt(num_blocks))
         block_size = H // blocks_per_row
-
+    
         i = block_index // blocks_per_row
         j = block_index % blocks_per_row
-
-
+    
         maps = []
         for f in file_list:
             m = np.load(os.path.join(map_folder, f))
-
-            block = m[i*block_size : (i+1)*block_size,j*block_size : (j+1)*block_size]
-            mask_block = mask_validos[i*block_size : (i+1)*block_size,j*block_size : (j+1)*block_size]
-
+            block = m[i*block_size : (i+1)*block_size, j*block_size : (j+1)*block_size]
+            mask_block = mask_validos[i*block_size : (i+1)*block_size, j*block_size : (j+1)*block_size]
             block_masked = np.where(mask_block, block, np.nan)
             maps.append(block_masked)
-
+    
         maps = np.stack(maps, axis=0)  # (N, block_size, block_size)
-        maps = np.transpose(maps, (1, 2, 0))  # (block_size, block_size, N)
+        
+        return np.transpose(maps, (1, 2, 0))
+    
+    @classmethod
+    def spectrogram(cls,map_folder, t_limit=None, num_blocks=64, block_index=0, fs=500):
+
+        from scipy import signal
+
+        maps = cls.block_split(map_folder, t_limit=t_limit, num_blocks=block_index, block_index=block_index, fs=fs)
+    
+        ny, nx, N = maps.shape
+    
+        # Example to get output shapes
+        f, t, Sxx_example = signal.spectrogram(maps[0, 0, :], fs=fs)
+        nf = len(f)
+        nt = len(t)
+    
+        Sxx_all = np.empty((ny, nx, nf, nt))
+    
+        # Loop over pixels
+        for iy in range(ny):
+            for ix in range(nx):
+                ts = maps[iy, ix, :]
+                if np.isnan(ts).all():
+                    Sxx_all[iy, ix] = np.nan
+                else:
+                    if np.isnan(ts).any():
+                        ts = np.interp(
+                            np.arange(len(ts)),
+                            np.arange(len(ts))[~np.isnan(ts)],
+                            ts[~np.isnan(ts)]
+                        )
+                    _, _, Sxx = signal.spectrogram(ts, fs=fs)
+                    Sxx_all[iy, ix] = Sxx
+
+        Sxx_avg = np.nanmean(Sxx_all, axis=(0, 1))  # shape (nf, nt)
+    
+        plt.figure(figsize=(8, 4))
+        plt.pcolormesh(t, f, Sxx_avg, shading='gouraud')
+        plt.ylabel('Frequency [Hz]')
+        plt.xlabel('Time [sec]')
+        plt.title('Average Spectrogram over block')
+        plt.colorbar(label='Power Spectral Density')
+        plt.tight_layout()
+        plt.show()
+    
+        return f, t, Sxx_all
+
+    @classmethod
+    def block_amplitude(cls,map_folder, f0=None, fs=500, mode=1, num_blocks=64, block_index=0, t_limit=None, neighbor = None):
+
+        maps = cls.block_split(map_folder, t_limit=t_limit, num_blocks=block_index, block_index=block_index, fs=fs)
 
         ny, nx, N = maps.shape
-        dt = 1 / tasa
+        dt = 1 / fs
 
         fft_vals = np.fft.fft(maps, axis=-1)
         fft_freqs = np.fft.fftfreq(N, d=dt)
