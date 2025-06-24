@@ -636,7 +636,7 @@ class analyze:
                 raise ValueError("Any map_folder or array is needed")
         else:
             if array == None:       # Spectrogram for a block
-                maps = cls.block_split(map_folder, t_limit=t_limit, num_blocks=block_index, block_index=block_index, fs=fs)
+                maps = cls.block_split(map_folder, t_limit=t_limit, num_blocks=num_blocks, block_index=block_index)
             
                 ny, nx, N = maps.shape
             
@@ -683,7 +683,7 @@ class analyze:
     @classmethod
     def block_amplitude(cls,map_folder, f0=None, fs=500, mode=1, num_blocks=64, block_index=0, t_limit=None, neighbor = None):
 
-        maps = cls.block_split(map_folder, t_limit=t_limit, num_blocks=block_index, block_index=block_index, fs=fs)
+        maps = cls.block_split(map_folder, t_limit=t_limit, num_blocks=block_index, block_index=block_index)
 
         ny, nx, N = maps.shape
         dt = 1 / fs
