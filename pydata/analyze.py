@@ -614,49 +614,71 @@ class analyze:
         return np.transpose(maps, (1, 2, 0))
     
     @classmethod
-    def spectrogram(cls,map_folder, t_limit=None, num_blocks=64, block_index=0, fs=500):
+    def spectrogram(cls,map_folder = None,array = None, t_limit=None, num_blocks=64, block_index=0, fs=500, show = False):
 
         from scipy import signal
+        if map_folder == None:      
+            if array is not None:   # Spectrogram for some point
+            
+                f, t, Sxx = signal.spectrogram(array, fs=fs)
+                if show:
+                    plt.figure(figsize=(8, 4))
+                    plt.pcolormesh(t, f, Sxx, shading='gouraud')
+                    plt.ylabel('Frequency [Hz]')
+                    plt.xlabel('Time [sec]')
+                    plt.title('Average Spectrogram over block')
+                    plt.colorbar(label='Power Spectral Density')
+                    plt.tight_layout()
+                    plt.show()
+                return f,t,Sxx
+            
+            else:
+                raise ValueError("Any map_folder or array is needed")
+        else:
+            if array == None:       # Spectrogram for a block
+                maps = cls.block_split(map_folder, t_limit=t_limit, num_blocks=block_index, block_index=block_index, fs=fs)
+            
+                ny, nx, N = maps.shape
+            
+                # Example to get output shapes
+                f, t, Sxx_example = signal.spectrogram(maps[0, 0, :], fs=fs)
+                nf = len(f)
+                nt = len(t)
+            
+                Sxx_all = np.empty((ny, nx, nf, nt))
 
-        maps = cls.block_split(map_folder, t_limit=t_limit, num_blocks=block_index, block_index=block_index, fs=fs)
-    
-        ny, nx, N = maps.shape
-    
-        # Example to get output shapes
-        f, t, Sxx_example = signal.spectrogram(maps[0, 0, :], fs=fs)
-        nf = len(f)
-        nt = len(t)
-    
-        Sxx_all = np.empty((ny, nx, nf, nt))
-    
-        # Loop over pixels
-        for iy in range(ny):
-            for ix in range(nx):
-                ts = maps[iy, ix, :]
-                if np.isnan(ts).all():
-                    Sxx_all[iy, ix] = np.nan
-                else:
-                    if np.isnan(ts).any():
-                        ts = np.interp(
-                            np.arange(len(ts)),
-                            np.arange(len(ts))[~np.isnan(ts)],
-                            ts[~np.isnan(ts)]
-                        )
-                    _, _, Sxx = signal.spectrogram(ts, fs=fs)
-                    Sxx_all[iy, ix] = Sxx
+                # Loop over pixels
+                for iy in range(ny):
+                    for ix in range(nx):
+                        ts = maps[iy, ix, :]
+                        if np.isnan(ts).all():
+                            Sxx_all[iy, ix] = np.nan
+                        else:
+                            if np.isnan(ts).any():
+                                ts = np.interp(
+                                    np.arange(len(ts)),
+                                    np.arange(len(ts))[~np.isnan(ts)],
+                                    ts[~np.isnan(ts)]
+                                )
+                            _, _, Sxx = signal.spectrogram(ts, fs=fs)
+                            Sxx_all[iy, ix] = Sxx
 
-        Sxx_avg = np.nanmean(Sxx_all, axis=(0, 1))  # shape (nf, nt)
-    
-        plt.figure(figsize=(8, 4))
-        plt.pcolormesh(t, f, Sxx_avg, shading='gouraud')
-        plt.ylabel('Frequency [Hz]')
-        plt.xlabel('Time [sec]')
-        plt.title('Average Spectrogram over block')
-        plt.colorbar(label='Power Spectral Density')
-        plt.tight_layout()
-        plt.show()
-    
-        return f, t, Sxx_all
+                Sxx_avg = np.nanmean(Sxx_all, axis=(0, 1))  # shape (nf, nt)
+                
+                if show:
+                    plt.figure(figsize=(8, 4))
+                    plt.pcolormesh(t, f, Sxx_avg, shading='gouraud')
+                    plt.ylabel('Frequency [Hz]')
+                    plt.xlabel('Time [sec]')
+                    plt.title('Average Spectrogram over block')
+                    plt.colorbar(label='Power Spectral Density')
+                    plt.tight_layout()
+                    plt.show()
+            
+                return f, t, Sxx_all, Sxx_avg
+            else:
+                ValueError("map_folder or array is needed, not both")
+            
 
     @classmethod
     def block_amplitude(cls,map_folder, f0=None, fs=500, mode=1, num_blocks=64, block_index=0, t_limit=None, neighbor = None):
