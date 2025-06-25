@@ -614,20 +614,21 @@ class analyze:
         return np.transpose(maps, (1, 2, 0))
     
     @classmethod
-    def spectrogram(cls,map_folder = None,array = None, t_limit=None, num_blocks=64, block_index=0, fs=500, show = False):
-
+    def spectrogram(cls,map_folder = None,array = None, fs=500, show = False, **kwargs):
+        signal_kwargs = {k: kwargs[k] for k in ['nperseg', 'noverlap', 'window'] if k in kwargs}
+        block_kwargs = {k: kwargs[k] for k in ['t_limit', 'num_blocks', 'block_index'] if k in kwargs}
         from scipy import signal
         if map_folder == None:      
             if array is not None:   # Spectrogram for some point
             
-                f, t, Sxx = signal.spectrogram(array, fs=fs)
+                f, t, Sxx = signal.spectrogram(array, fs=fs, **signal_kwargs)
                 if show:
                     plt.figure(figsize=(8, 4))
-                    plt.pcolormesh(t, f, Sxx, shading='gouraud')
+                    plt.pcolormesh(t, f, np.sqrt(Sxx), shading='gouraud')
                     plt.ylabel('Frequency [Hz]')
                     plt.xlabel('Time [sec]')
                     plt.title('Average Spectrogram over block')
-                    plt.colorbar(label='Power Spectral Density')
+                    plt.colorbar(label='Amplitude (mm)')
                     plt.tight_layout()
                     plt.show()
                 return f,t,Sxx
@@ -636,12 +637,12 @@ class analyze:
                 raise ValueError("Any map_folder or array is needed")
         else:
             if array == None:       # Spectrogram for a block
-                maps = cls.block_split(map_folder, t_limit=t_limit, num_blocks=num_blocks, block_index=block_index)
+                maps = cls.block_split(map_folder, **block_kwargs)
             
                 ny, nx, N = maps.shape
             
                 # Example to get output shapes
-                f, t, Sxx_example = signal.spectrogram(maps[0, 0, :], fs=fs)
+                f, t, Sxx_example = signal.spectrogram(maps[0, 0, :], fs=fs, **signal_kwargs)
                 nf = len(f)
                 nt = len(t)
             
@@ -660,7 +661,7 @@ class analyze:
                                     np.arange(len(ts))[~np.isnan(ts)],
                                     ts[~np.isnan(ts)]
                                 )
-                            _, _, Sxx = signal.spectrogram(ts, fs=fs)
+                            _, _, Sxx = signal.spectrogram(ts, fs=fs, **signal_kwargs)
                             Sxx_all[iy, ix] = Sxx
 
                 Sxx_avg = np.nanmean(Sxx_all, axis=(0, 1))  # shape (nf, nt)
