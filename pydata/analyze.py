@@ -627,7 +627,7 @@ class analyze:
                     plt.pcolormesh(t, f, np.sqrt(Sxx), shading='gouraud')
                     plt.ylabel('Frequency [Hz]')
                     plt.xlabel('Time [sec]')
-                    plt.title('Average Spectrogram over block')
+                    plt.title('Spectrogram of some point')
                     plt.colorbar(label='Amplitude (mm)')
                     plt.tight_layout()
                     plt.show()
@@ -668,11 +668,11 @@ class analyze:
                 
                 if show:
                     plt.figure(figsize=(8, 4))
-                    plt.pcolormesh(t, f, Sxx_avg, shading='gouraud')
+                    plt.pcolormesh(t, f, np.sqrt(Sxx), shading='gouraud')
                     plt.ylabel('Frequency [Hz]')
                     plt.xlabel('Time [sec]')
                     plt.title('Average Spectrogram over block')
-                    plt.colorbar(label='Power Spectral Density')
+                    plt.colorbar(label='Amplitude (m)')
                     plt.tight_layout()
                     plt.show()
             
