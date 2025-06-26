@@ -550,12 +550,9 @@ class analyze:
         print(f"Saved in: {output_path}")
         
     @classmethod
-    def confined_peaks(cls, image, cnt= None, smoothed = 0, percentage = 80):
+    def confined_peaks(cls, image, cnt= None, **kwargs):
         if cnt is None:
-            _, cnts = cls.mask(image,
-                                smoothed = smoothed, 
-                                percentage = percentage,
-                                )
+            _, cnts = cls.mask(image,**kwargs,)
             plt.figure()
             plt.imshow(image)
             for c in cnts:
