@@ -44,7 +44,23 @@ class PsiSolver:
             for j in range(len(r[0, :])):
                 sol[i, j] = self.psi_n(1, r[i, j], y[i, j]) if (r[i, j] < self.selected_c) else self.psi_n(2, r[i, j], y[i, j])
         return sol
-
+    
+def freq_mode(r,c_index,H,sigma = 0.0728 ,rho = 1002,eq = 0, g = 9.81):
+    '''
+    El cero de la función de Bessel J(c) = 0 corresponde al radio del anillo.
+    Como el problema está adimensionalizado,  kr = c --> k = c/r.
+    r es el parámetro con el que armamos los toroides en 3D, corresponde a aproximadamente el radio interno.
+    Devuelve los omegas, no las frecuencias temporales.
+    '''
+    c = [2.4048, 5.5201, 8.6537, 11.7915, 14.9309]
+    k = c[c_index]/r
+    def gc(k):
+        return np.sqrt(k*(g+sigma*k**2/rho)*np.tanh(H*k))
+    def only_g(k):
+        return np.sqrt(g*k)
+    
+    return only_g(k) if eq==1 else gc(k)
+    
 if __name__ == "__main__":
     '''
     First for a psi that doesn´t evolve in time

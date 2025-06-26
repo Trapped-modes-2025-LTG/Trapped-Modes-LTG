@@ -400,7 +400,7 @@ class analyze:
            smoothed=None, percentage=None, sigma_background=100,
            show_mask=False, timer=False, only="mask"):
         '''
-        Processes a folder of ".tif" images to compute height maps using the FCD method.
+        Processes a folder of ".tif" images to compute height maps using the FCD method (1s per image).
     
         Parameters
         ----------
@@ -612,6 +612,11 @@ class analyze:
     
     @classmethod
     def spectrogram(cls,map_folder = None,array = None, fs=500, show = False, **kwargs):
+        
+        '''
+        For maps: 
+            
+        '''
         signal_kwargs = {k: kwargs[k] for k in ['nperseg', 'noverlap', 'window'] if k in kwargs}
         block_kwargs = {k: kwargs[k] for k in ['t_limit', 'num_blocks', 'block_index'] if k in kwargs}
         from scipy import signal
@@ -719,166 +724,4 @@ class analyze:
             phases[:, :, k] = np.angle(harmonic_vals)
 
         return harmonics, amps, phases
-    
-    
-    # if not cnt1[-1][0] == cnt1[0][0] or cnt1[-1][1] == cnt1[0][1]:
-        
-        #     p1 = cnt1[0]
-        #     p2 = cnt1[-1]
-            
-        #     y_max = image.shape[0] - 1 
-            
-        #     caminos_y = []
-        #     caminos_x = []
-                
-        #     for y, x in [p1, p2]:
-        #         y, x = int(y), int(x)
-                
-        #         if x == 0:
-        #             if y > y_max / 2:
-        #                 camino_y = np.linspace(y, y_max, int(y_max - y))
-        #             else:
-        #                 camino_y = np.linspace(0, y, int(y))
-        #             camino_x = np.zeros_like(camino_y)
-                
-        #         elif y == 0:
-        #             if x > y_max / 2:
-        #                 camino_x = np.linspace(x, y_max, int(y_max - x))
-        #             else:
-        #                 camino_x = np.linspace(0, x, int(x))
-        #             camino_y = np.zeros_like(camino_x)
-            
-        #         elif x == y_max:
-        #             if y > y_max / 2:
-        #                 camino_y = np.linspace(y, y_max, int(y_max - y))
-        #             else:
-        #                 camino_y = np.linspace(0, y, int(y))
-        #             camino_x = np.full_like(camino_y, y_max)
-            
-        #         elif y == y_max:
-        #             if x > y_max / 2:
-        #                 camino_x = np.linspace(x, y_max, int(y_max - x))
-        #             else:
-        #                 camino_x = np.linspace(0, x, int(x))
-        #             camino_y = np.full_like(camino_x, y_max)
-                
-        #         caminos_y.append(camino_y)
-        #         caminos_x.append(camino_x)          
-# class ImageEnhancer:
-#     def __init__(self, imagen, sigma_background=100, alpha=0):
-#         self.image = imagen
-#         self.sigma_background = sigma_background
-#         self.alpha = alpha
-
-#     def _subtract_background(self):
-#         background = gaussian(self.image.astype(np.float32), sigma=self.sigma_background, preserve_range=True)
-#         corrected = self.image.astype(np.float32) - self.alpha * background
-#         return corrected
-
-#     def _find_large_contours(self, binary, percentil_contornos=0):
-#         contours = find_contours(binary, level=0.5)
-#         if percentil_contornos > 0:
-#             def area_contorno(contour):
-#                 x = contour[:, 1]
-#                 y = contour[:, 0]
-#                 return 0.5 * np.abs(np.dot(x, np.roll(y, 1)) - np.dot(y, np.roll(x, 1)))
-#             areas = np.array([area_contorno(c) for c in contours])
-#             umbral = np.percentile(areas, percentil_contornos)
-#             return [c for c, a in zip(contours, areas) if a >= umbral]
-#         return contours
-
-#     # def _find_contours_by_sobel(self, image, levels=[0.1], percentil_contornos=0):
-#     #     edges = sobel(image.astype(float) / 255.0)
-#     #     contornos = []
-#     #     for nivel in levels:
-#     #         c = find_contours(edges, level=nivel)
-#     #         contornos.extend(c)
-#     #     if percentil_contornos > 0 and contornos:
-#     #         def area_contorno(contour):
-#     #             x = contour[:, 1]
-#     #             y = contour[:, 0]
-#     #             return 0.5 * np.abs(np.dot(x, np.roll(y, 1)) - np.dot(y, np.roll(x, 1)))
-#     #         areas = np.array([area_contorno(c) for c in contornos])
-#     #         umbral = np.percentile(areas, percentil_contornos)
-#     #         contornos = [c for c, a in zip(contornos, areas) if a >= umbral]
-#     #     return contornos
-
-#     def procesar(self, suavizado=5, mostrar=True, percentil_contornos=0):
-    
-#         corrected = self._subtract_background()
-#         smooth = uniform_filter(corrected, size=suavizado)
-
-#         # if metodo_contorno == "sobel":
-#         #     contornos = self._find_contours_by_sobel(smooth, levels=[0.16], percentil_contornos=percentil_contornos)
-#         #     imagen_contorno = sobel(smooth.astype(float) / 255.0)
-#         # elif metodo_contorno == "binarizacion":
-#         #     threshold = np.mean(smooth)
-#         #     binary = (smooth > threshold).astype(np.uint8) * 255
-#         #     contornos = self._find_large_contours(binary, percentil_contornos=percentil_contornos)
-#         #     imagen_contorno = binary
-#         # else:
-#         #     raise ValueError(f"Método de contorno no reconocido: {metodo_contorno}")
-        
-#         threshold = np.mean(smooth)
-#         binary = (smooth > threshold).astype(np.uint8) * 255
-#         contornos = self._find_large_contours(binary, percentil_contornos=percentil_contornos)
-#         imagen_contorno = binary
-        
-#         if mostrar:
-#             self._mostrar_resultados( smooth,  imagen_contorno, contornos, 0, imagen_contorno)
-        
-#         return imagen_contorno, contornos
-        
-        
-
-#     def _mostrar_resultados(self, smooth, binary, contornos, threshold, imagen_contorno):
-#         plt.figure()
-
-#         plt.subplot(1,3, 1)
-#         plt.imshow(self.image, cmap='gray')
-#         for c in contornos:
-#             plt.scatter(c[:, 1], c[:, 0], s=1, c='cyan')
-#         plt.title("Original + contornos")
-#         plt.axis('off')
-
-
-#         plt.subplot(1,3, 2)
-#         plt.imshow(smooth, cmap='gray')
-#         plt.title("Suavizado")
-#         plt.axis('off')
-
-#         plt.subplot(1,3, 3)
-#         plt.imshow(imagen_contorno, cmap='gray')
-#         for c in contornos:
-#             plt.scatter(c[:, 1], c[:, 0], s=1, c='cyan')
-#         plt.title("Binarizado")
-#         plt.axis('off')
-
-#         print(f"Cantidad de contornos detectados: {len(contornos)}")
-
-#         plt.tight_layout()
-#         plt.show()
-
-# #%%      
-# base_dir = os.path.dirname(os.path.dirname(__file__))
-
-# tif_folder = os.path.join(base_dir, "datos","toroide_deteccion")
-
-# tif_files = [f for f in os.listdir(tif_folder) if f.lower().endswith('.tif')]
-
-
-# df_tif = pd.DataFrame({
-#     'nombre_archivo': tif_files,
-#     'ruta_completa': [os.path.join(tif_folder, f) for f in tif_files]
-# })
-
-# path = df_tif["ruta_completa"].iloc[5]
-# imagen = analyze.load_image(path)
-# #imagen = imread("C:/Users/Tomas/Desktop/FACULTAD/LABO 6/Resta-P8139-150Oe-50ms-1000.tif")[400:700, 475:825]
-# enhancer = ImageEnhancer(imagen=imagen)
-
-# enhancer = ImageEnhancer(imagen=imagen)
-# binary, contornos = enhancer.procesar(
-#     suavizado=20,
-#     percentil_contornos=30
-# )        
+       
