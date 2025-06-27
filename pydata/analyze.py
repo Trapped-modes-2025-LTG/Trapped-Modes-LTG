@@ -576,7 +576,7 @@ class analyze:
             cy, cx = props[0].centroid
             return cy, cx
         else: 
-            pass
+            raise ValueError("Idk wtf happened")
     
     @classmethod
     def block_split(cls,map_folder, t_limit=None, num_blocks=64, block_index=0):
@@ -614,9 +614,12 @@ class analyze:
     def spectrogram(cls,map_folder = None,array = None, fs=500, show = False, **kwargs):
         
         '''
-        For maps: 
-            
+        Processing time
+            - For map_folder: ∼81s
+            - For array: ∼121ms (show = True) / 344 μs ± 3.78 μs (show = False)
+            - For an entire dataset: ∼1:26:24s
         '''
+        
         signal_kwargs = {k: kwargs[k] for k in ['nperseg', 'noverlap', 'window'] if k in kwargs}
         block_kwargs = {k: kwargs[k] for k in ['t_limit', 'num_blocks', 'block_index'] if k in kwargs}
         from scipy import signal
