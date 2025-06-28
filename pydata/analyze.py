@@ -20,6 +20,9 @@ from skimage.draw import polygon
 from skimage.measure import regionprops, label,find_contours
 from scipy.ndimage import maximum_filter
 from scipy.signal import find_peaks
+from skimage.transform import warp_polar
+from scipy.optimize import curve_fit
+
 
 class analyze:
     @classmethod
@@ -582,6 +585,113 @@ class analyze:
             return cy, cx
         else: 
             pass
+        
+    @classmethod
+    def block_split(cls,map_folder, t_limit=None, num_blocks=64, block_index=0):
+        file_list = sorted([
+            f for f in os.listdir(map_folder)
+            if f.endswith('_map.npy') and 'calibration_factor' not in f
+        ])
+        file_list = file_list[:t_limit]
+    
+        initial_map = np.load(os.path.join(map_folder, file_list[0]))
+        H, W = initial_map.shape
+    
+        mask_ceros = (initial_map == 0)
+        mask_validos = ~mask_ceros
+    
+        blocks_per_row = int(np.sqrt(num_blocks))
+        block_size = H // blocks_per_row
+    
+        i = block_index // blocks_per_row
+        j = block_index % blocks_per_row
+    
+        maps = []
+        for f in file_list:
+            m = np.load(os.path.join(map_folder, f))
+            block = m[i*block_size : (i+1)*block_size, j*block_size : (j+1)*block_size]
+            mask_block = mask_validos[i*block_size : (i+1)*block_size, j*block_size : (j+1)*block_size]
+            block_masked = np.where(mask_block, block, np.nan)
+            maps.append(block_masked)
+    
+        maps = np.stack(maps, axis=0)  # (N, block_size, block_size)
+        
+        return np.transpose(maps, (1, 2, 0))
+    
+    @classmethod
+    def spectrogram(cls,map_folder = None,array = None, fs=500, show = False, **kwargs):
+    
+        '''
+        Processing time
+            - For map_folder: ∼81s
+            - For array: ∼121ms (show = True) / 344 μs ± 3.78 μs (show = False)
+            - For an entire dataset: ∼1:26:24s
+        '''
+    
+        signal_kwargs = {k: kwargs[k] for k in ['nperseg', 'noverlap', 'window'] if k in kwargs}
+        block_kwargs = {k: kwargs[k] for k in ['t_limit', 'num_blocks', 'block_index'] if k in kwargs}
+        from scipy import signal
+        if map_folder == None:      
+            if array is not None:   # Spectrogram for some point
+        
+                f, t, Sxx = signal.spectrogram(array, fs=fs, **signal_kwargs)
+                if show:
+                    plt.figure(figsize=(8, 4))
+                    plt.pcolormesh(t, f, np.sqrt(Sxx), shading='gouraud')
+                    plt.ylabel('Frequency [Hz]')
+                    plt.xlabel('Time [sec]')
+                    plt.title('Spectrogram of some point')
+                    plt.colorbar(label='Amplitude (mm)')
+                    plt.tight_layout()
+                    plt.show()
+                return f,t,Sxx
+        
+            else:
+                raise ValueError("Any map_folder or array is needed")
+        else:
+            if array == None:       # Spectrogram for a block
+                maps = cls.block_split(map_folder, **block_kwargs)
+        
+                ny, nx, N = maps.shape
+        
+                # Example to get output shapes
+                f, t, Sxx_example = signal.spectrogram(maps[0, 0, :], fs=fs, **signal_kwargs)
+                nf = len(f)
+                nt = len(t)
+        
+                Sxx_all = np.empty((ny, nx, nf, nt))
+
+                # Loop over pixels
+                for iy in range(ny):
+                    for ix in range(nx):
+                        ts = maps[iy, ix, :]
+                        if np.isnan(ts).all():
+                            Sxx_all[iy, ix] = np.nan
+                        else:
+                            if np.isnan(ts).any():
+                                ts = np.interp(
+                                    np.arange(len(ts)),
+                                    np.arange(len(ts))[~np.isnan(ts)],
+                                    ts[~np.isnan(ts)]
+                                    )
+                            _, _, Sxx = signal.spectrogram(ts, fs=fs, **signal_kwargs)
+                            Sxx_all[iy, ix] = Sxx
+
+                Sxx_avg = np.nanmean(Sxx_all, axis=(0, 1))  # shape (nf, nt)
+            
+                if show:
+                    plt.figure(figsize=(8, 4))
+                    plt.pcolormesh(t, f, np.sqrt(Sxx), shading='gouraud')
+                    plt.ylabel('Frequency [Hz]')
+                    plt.xlabel('Time [sec]')
+                    plt.title('Average Spectrogram over block')
+                    plt.colorbar(label='Amplitude (m)')
+                    plt.tight_layout()
+                    plt.show()
+        
+                return f, t, Sxx_all, Sxx_avg
+            else:
+                ValueError("map_folder or array is needed, not both")
      
     @staticmethod
     def block_amplitude(map_folder, f0=None, tasa=500, mode=1, num_blocks=64, block_index=0, t_limit=None, neighbor = None, zero = 0):
@@ -626,15 +736,16 @@ class analyze:
         pos_freqs = fft_freqs >= 0
         fft_vals = fft_vals[:, :, pos_freqs]
         fft_freqs = fft_freqs[pos_freqs]
+        
 
         if f0 is None:
             # Promediar magnitud sobre todos los píxeles para robustez
             mean_spectrum = np.nanmean(np.abs(fft_vals), axis=(0, 1))
             peaks, _ = find_peaks(mean_spectrum)
             if len(peaks) == 0:
-                return np.zeros(mode), np.full((ny, nx, mode), None, dtype=object), np.full((ny, nx, mode), None, dtype=object)
+                return np.zeros(mode), np.full((ny, nx, mode), None, dtype=object), np.full((ny, nx, mode), None, dtype=object), None, None
             max_peak_index = peaks[np.argmax(mean_spectrum[peaks])]
-            f0 = fft_freqs[max_peak_index]
+            f0 = fft_freqs[max_peak_index]  
 
         # === Índices de armónicos ===
         harmonics = [f0 * n for n in range(0, mode)]
@@ -651,9 +762,11 @@ class analyze:
             else:
                 amps[:, :, k] = 2 * np.abs(harmonic_vals) / N
             phases[:, :, k] = np.angle(harmonic_vals)
+            
+       # spectrum = np.stack(mean_spectrum, fft_freqs)
 
-        return harmonics, amps, phases
-
+        return harmonics, amps, phases, mean_spectrum, fft_freqs
+    
     @staticmethod
     def decay(MODE, image_center, cut, distance):
         '''
@@ -802,6 +915,108 @@ class analyze:
         plt.show()
         
         return A, dA, B, dB
+      
+    
+    @staticmethod    
+    def dynamic_center_signal(map_folder, image_shape, radio, tita=0, all=False, plot=True):
+        """
+        Detects the center of the second largest contour in each frame and extracts height values at points 
+        located at a specified radius from that center.
+
+        Parameters
+        ----------
+        map_folder : str
+            Path to the folder containing contour and map files.
+        image_shape : tuple of int
+            Shape of the images/maps as (height, width).
+        radio : float
+            Distance from the detected center at which to sample the height values.
+        tita : float, optional
+            Angle in degrees at which to sample the height value around the center (default is 0).
+        all : bool, optional
+            If True, samples height values at all angles (0 to 360 degrees) around the center; 
+            if False, samples only at the angle specified by `tita` (default is False).
+        plot : bool, optional
+            If True, plots the first frame with the detected center and sampling points (default is True).
+
+        Returns
+        -------
+        np.ndarray
+            Array of mean height values extracted for each frame; NaN if no valid values found or 
+            if less than two contours are detected in a frame.
+
+        Raises
+        ------
+        ValueError
+            If the number of contour files does not match the number of map files.
+        """
+        # Archivos
+        contour_files = sorted([f for f in os.listdir(map_folder) if f.endswith('_contours.npy')])
+        map_files = sorted([f for f in os.listdir(map_folder) if f.endswith('_map.npy') and 'calibration_factor' not in f])
+
+        if len(contour_files) != len(map_files):
+            raise ValueError("Cantidad de contornos y mapas no coincide")
+
+        senal = []
+
+        for i, (c_file, m_file) in enumerate(zip(contour_files, map_files)):
+            contornos = np.load(os.path.join(map_folder, c_file), allow_pickle=True)
+            mapa = np.load(os.path.join(map_folder, m_file))
+
+            if len(contornos) < 2:
+                senal.append(np.nan)
+                continue
+
+            # Centro del segundo contorno más grande
+            contornos = sorted(contornos, key=lambda c: len(c), reverse=True)
+            cnt = contornos[1]
+            centroide = np.mean(cnt, axis=0)
+            cy, cx = centroide  # y, x en imagen
+
+            
+            if all:
+                thetas = np.linspace(0, 2*np.pi, 360, endpoint=False)
+            else:
+                thetas = [np.deg2rad(tita)]
+
+            valores = []
+            for theta in thetas:
+                dx = radio * np.cos(theta)
+                dy = -radio * np.sin(theta)
+                px = int(round(cx + dx))
+                py = int(round(cy + dy))
+
+                if 0 <= py < image_shape[0] and 0 <= px < image_shape[1]:
+                    v = mapa[py, px]
+                    if not np.isnan(v) and v != 0:
+                        valores.append(v)
+
+            if valores:
+                senal.append(np.mean(valores))  
+            else:
+                senal.append(np.nan)
+
+            
+            if plot and i == 0:
+                plt.figure(figsize=(6, 6))
+                plt.imshow(mapa, cmap='viridis')
+                plt.scatter(cx, cy, color='cyan', label='Centro')
+                for theta in thetas:
+                    px = int(round(cx + radio * np.cos(theta)))
+                    py = int(round(cy - radio * np.sin(theta)))
+                    if 0 <= py < image_shape[0] and 0 <= px < image_shape[1]:
+                        plt.scatter(px, py, color='red')
+                plt.title(f'Frame {i}: centro y puntos sobre círculo')
+                plt.legend()
+                plt.axis('equal')
+                plt.tight_layout()
+                plt.show()
+
+        return np.array(senal)
+    
+    
+    
+    
     
     
     # if not cnt1[-1][0] == cnt1[0][0] or cnt1[-1][1] == cnt1[0][1]:
@@ -964,5 +1179,5 @@ class analyze:
 # binary, contornos = enhancer.procesar(
 #     suavizado=20,
 #     percentil_contornos=30
-# )        
+# )               
     
