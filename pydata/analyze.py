@@ -446,8 +446,6 @@ class analyze:
             displaced_image = cls.load_image(displaced_path)
     
             mask_applied = False
-            mask = None
-            cnt = None
     
             if smoothed and percentage:
                 mask, cnt = cls.mask(
@@ -496,7 +494,6 @@ class analyze:
                     
     @staticmethod
     def video(maps_dir, calibration_factor=None, frame_final=300, n_extra_frames=20):
-    
 
         if calibration_factor is None:
             calibration_path = os.path.join(maps_dir, 'calibration_factor.npy')
@@ -586,7 +583,7 @@ class analyze:
             
         if props:
             cy, cx = props[0].centroid
-            return cy, cx
+            return int(cy), int(cx)
         else: 
             pass
         
@@ -770,6 +767,7 @@ class analyze:
        # spectrum = np.stack(mean_spectrum, fft_freqs)
 
         return harmonics, amps, phases, mean_spectrum, fft_freqs
+
     
     @classmethod
     def decay(cls,MODE, image_center, cut, distance):
@@ -915,7 +913,28 @@ class analyze:
         plt.show()
         
         return A, dA, B, dB
-      
+    
+    @classmethod
+    def rings(cls,image, center, radio,tita=0, all=False):
+        
+        cy, cx = center
+
+        if all:
+            thetas = np.linspace(0, 2*np.pi, 360, endpoint=False)
+        else:
+            thetas = [np.deg2rad(tita)]
+        
+        cx_ = []
+        cy_ = []
+        for theta in thetas:
+            dx = radio * np.cos(theta)
+            dy = -radio * np.sin(theta)
+            px = int(round(cx + dx))
+            py = int(round(cy + dy))
+            cx_.append(px)
+            cy_.append(py)
+        return(cx_, cy_)
+
     
     @staticmethod    
     def dynamic_center_signal(map_folder, image_shape, centers, radio, tita=0, all=False, plot=True):
