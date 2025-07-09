@@ -620,7 +620,7 @@ class analyze:
         return np.transpose(maps, (1, 2, 0))
     
     @classmethod
-    def spectrogram(cls,map_folder = None,array = None, fs=500, show = False, **kwargs):
+    def spectrogram(cls,map_folder = None,array = None, fs=125, show = False, **kwargs):
     
         '''
         Processing time
@@ -638,14 +638,14 @@ class analyze:
                 f, t, Sxx = signal.spectrogram(array, fs=fs, **signal_kwargs)
                 if show:
                     plt.figure(figsize=(8, 4))
-                    plt.pcolormesh(t, f, np.sqrt(Sxx), shading='gouraud')
+                    plt.pcolormesh(t, f, np.log10(Sxx), shading='gouraud')
                     plt.ylabel('Frequency [Hz]')
                     plt.xlabel('Time [sec]')
                     plt.title('Spectrogram of some point')
                     plt.colorbar(label='Amplitude (mm)')
                     plt.tight_layout()
                     plt.show()
-                return f,t,Sxx
+                return t,f,Sxx
         
             else:
                 raise ValueError("Any map_folder or array is needed")
@@ -682,7 +682,7 @@ class analyze:
             
                 if show:
                     plt.figure(figsize=(8, 4))
-                    plt.pcolormesh(t, f, np.sqrt(Sxx), shading='gouraud')
+                    plt.pcolormesh(t, f, np.log10(Sxx), shading='gouraud')
                     plt.ylabel('Frequency [Hz]')
                     plt.xlabel('Time [sec]')
                     plt.title('Average Spectrogram over block')
@@ -690,7 +690,7 @@ class analyze:
                     plt.tight_layout()
                     plt.show()
         
-                return f, t, Sxx_all, Sxx_avg
+                return t,f, Sxx_all, Sxx_avg
             else:
                 ValueError("map_folder or array is needed, not both")
      
@@ -915,11 +915,10 @@ class analyze:
         return A, dA, B, dB
     
     @classmethod
-    def rings(cls,image, center, radio,tita=0, all=False):
-        
-        cy, cx = center
-
-        if all:
+    def rings(cls,image, center, radio,tita=0, all_=False):
+        cy = center[1]
+        cx = center[0]
+        if all_:
             thetas = np.linspace(0, 2*np.pi, 360, endpoint=False)
         else:
             thetas = [np.deg2rad(tita)]
@@ -937,7 +936,7 @@ class analyze:
 
     
     @staticmethod    
-    def dynamic_center_signal(map_folder, image_shape, centers, radio, tita=0, all=False, plot=True):
+    def dynamic_center_signal(map_folder, image_shape, centers, radio, tita=0, all_=False, show=True):
         """
         Detects the center of the second largest contour in each frame and extracts height values at points 
         located at a specified radius from that center.
@@ -978,12 +977,12 @@ class analyze:
 
         senal = []
 
-        for i, m_file in enumerate(map_files):
+        for i, m_file in enumerate(tqdm(map_files)):
             #contornos = np.load(os.path.join(map_folder, c_file), allow_pickle=True)
             mapa = np.load(os.path.join(map_folder, m_file))
             cx, cy = centers[i]
 
-            if all:
+            if all_:
                 thetas = np.linspace(0, 2*np.pi, 360, endpoint=False)
             else:
                 thetas = [np.deg2rad(tita)]
@@ -1006,7 +1005,7 @@ class analyze:
                 senal.append(np.nan)
 
             
-            if plot and i == 0:
+            if show and i == 0:
                 plt.figure(figsize=(6, 6))
                 plt.imshow(mapa, cmap='viridis')
                 plt.scatter(cx, cy, color='cyan', label='Centro')
