@@ -694,39 +694,10 @@ class analyze:
             else:
                 ValueError("map_folder or array is needed, not both")
      
-    @staticmethod
-    def block_amplitude(map_folder, f0=None, tasa=500, mode=1, num_blocks=64, block_index=0, t_limit=None, neighbor = None, zero = 0):
+    @classmethod
+    def block_amplitude(cls, map_folder, f0=None, tasa=500, mode=1, num_blocks=64, block_index=0, t_limit=None, neighbor = None, zero = 0):
 
-        file_list = sorted([f for f in os.listdir(map_folder) if f.endswith('_map.npy') and 'calibration_factor' not in f])
-        file_list = file_list[:t_limit]
-
-
-        initial_map = np.load(os.path.join(map_folder, file_list[0]))
-        H, W = initial_map.shape
-        
-        mask_ceros = (initial_map == 0)
-        
-        mask_validos = ~mask_ceros
-
-        blocks_per_row = int(np.sqrt(num_blocks))
-        block_size = H // blocks_per_row
-
-        i = block_index // blocks_per_row
-        j = block_index % blocks_per_row
-
-
-        maps = []
-        for f in file_list:
-            m = np.load(os.path.join(map_folder, f)) - zero
-
-            block = m[i*block_size : (i+1)*block_size,j*block_size : (j+1)*block_size]
-            mask_block = mask_validos[i*block_size : (i+1)*block_size,j*block_size : (j+1)*block_size]
-
-            block_masked = np.where(mask_block, block, np.nan)
-            maps.append(block_masked)
-
-        maps = np.stack(maps, axis=0)  # (N, block_size, block_size)
-        maps = np.transpose(maps, (1, 2, 0))  # (block_size, block_size, N)
+        maps = cls.block_split(map_folder)
 
         ny, nx, N = maps.shape
         dt = 1 / tasa
@@ -766,7 +737,7 @@ class analyze:
             
        # spectrum = np.stack(mean_spectrum, fft_freqs)
 
-        return harmonics, amps, phases, mean_spectrum, fft_freqs
+        return harmonics, amps, phases
 
     
     @classmethod
