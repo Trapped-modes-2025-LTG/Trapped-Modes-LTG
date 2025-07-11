@@ -547,45 +547,45 @@ class analyze:
         print(f"Saved in: {output_path}")
         
     @classmethod
-    def confined_peaks(cls, image= None, cnt= None, image_shape = None,  smoothed = 0, percentage = 80):
-        if cnt is None and image is  None:
+    def confined_peaks(cls, image=None, cnt=None, image_shape=None, smoothed=0, percentage=80):
+        if cnt is None and image is None:
             raise ValueError("Need image or contours to work")
         elif cnt is None and image is not None:
             _, cnts = cls.mask(image,
-                                smoothed = smoothed, 
-                                percentage = percentage,
-                                # mask_save= False,
-                                # show_mask = False
-                                )
+                               smoothed=smoothed,
+                               percentage=percentage)
             plt.figure()
             plt.imshow(image)
             for c in cnts:
-                plt.scatter(c[:, 1], c[:, 0],s = 1, c = "red")
-            cnt = cnts[1]       # TODO: select the correct index
-        
+                plt.scatter(c[:, 1], c[:, 0], s=1, c="red")
+            cnt = cnts[1]  # TODO: select the correct index
+    
         if image is not None and image_shape is None:
             height, width = image.shape[:2]
         elif image is None and image_shape is not None:
             height, width = image_shape[:2]
         else:
             raise ValueError("Need image or image_shape to get size")
-            
+    
         cnt = cnt.reshape(-1, 2)
         r = cnt[:, 1]
         c = cnt[:, 0]
-            
+    
         mask = np.zeros((height, width), dtype=np.uint16)
         rr, cc = polygon(r, c, mask.shape)
         mask[rr, cc] = 1
-            
+    
         labeled = label(mask)
         props = regionprops(labeled)
-            
+    
         if props:
             cy, cx = props[0].centroid
-            return int(cy), int(cx)
-        else: 
-            pass
+            angle_rad = props[0].orientation
+            angle_deg = (np.degrees(angle_rad) + 180) % 180  # Siempre entre 0 y 180
+            return int(cy), int(cx), angle_deg
+        else:
+            return None
+
         
     @classmethod
     def block_split(cls,map_folder, t_limit=None, num_blocks=64, block_index=0):
@@ -695,10 +695,10 @@ class analyze:
                 ValueError("map_folder or array is needed, not both")
      
     @classmethod
-    def block_amplitude(cls, map_folder, f0=None, tasa=500, mode=1, num_blocks=64, block_index=0, t_limit=None, neighbor = None, zero = 0):
+    def block_amplitude(cls, map_folder, f0=None, tasa=500, mode=1, num_blocks=64, block_index=0, t_limit=[], neighbor = None, zero = 0):
 
         file_list = sorted([f for f in os.listdir(map_folder) if f.endswith('_map.npy') and 'calibration_factor' not in f])
-        file_list = file_list[:t_limit]
+        file_list = file_list[t_limit[0]:t_limit[1]]
 
 
         initial_map = np.load(os.path.join(map_folder, file_list[0]))
