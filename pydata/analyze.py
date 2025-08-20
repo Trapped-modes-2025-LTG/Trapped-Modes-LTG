@@ -18,8 +18,10 @@ import cv2
 from skimage import io
 from skimage.draw import polygon
 from skimage.measure import regionprops, label,find_contours
-from scipy.ndimage import maximum_filter
 from scipy.signal import find_peaks
+from skimage.transform import warp_polar
+from scipy.optimize import curve_fit
+from tqdm import tqdm
 
 class analyze:
     @classmethod
@@ -398,9 +400,9 @@ class analyze:
     @classmethod
     def folder(cls, reference_path, displaced_dir, layers, square_size,
            smoothed=None, percentage=None, sigma_background=100,
-           show_mask=False, timer=False, only="mask"):
+           show_mask=False):
         '''
-        Processes a folder of ".tif" images to compute height maps using the FCD method (1s per image).
+        Processes a folder of ".tif" images to compute height maps using the FCD method.
     
         Parameters
         ----------
@@ -420,10 +422,6 @@ class analyze:
             Sigma for the background subtraction filter.
         show_mask : bool, default=False
             If True, displays the generated mask and contours.
-        timer : bool, default=False
-            If True, prints progress during processing.
-        only : str, default="mask"
-            Determines what to save: "mask", "contours", or "both".
     
         Returns
         -------
@@ -438,7 +436,9 @@ class analyze:
         calibration_saved = False
         file_list = sorted(os.listdir(displaced_dir))
     
-        for n, fname in enumerate(file_list):
+        centers = []    
+    
+        for fname in tqdm(file_list):
             if not (fname.endswith('.tif') and 'reference' not in fname):
                 continue
     
@@ -446,8 +446,6 @@ class analyze:
             displaced_image = cls.load_image(displaced_path)
     
             mask_applied = False
-            mask = None
-            cnt = None
     
             if smoothed and percentage:
                 mask, cnt = cls.mask(
@@ -461,6 +459,9 @@ class analyze:
                 displaced_w = np.where(mask.T, displaced, reference)
                 image_to_use = displaced_w
                 mask_applied = True
+                
+                center = cls.confined_peaks(cnt = cnt[1], image_shape = image_to_use.shape)   # TODO: chequear si este contorno es el que quiero
+                centers.append(center)
             else:
                 image_to_use = displaced_image
     
@@ -470,33 +471,29 @@ class analyze:
                 square_size,
                 layers
             )
-    
+            
             if mask_applied:
                 height_map *= mask.T
     
             base_name = fname.replace('.tif', '')
     
-            if only in {"mask", "both"}:
-                output_path = os.path.join(output_dir, f"{base_name}_map.npy")
-                np.save(output_path, height_map)
+            
+            output_path = os.path.join(output_dir, f"{base_name}_map.npy")
+            np.save(output_path, height_map)
     
-            if only in {"contours", "both"} and cnt is not None:
-                sorted_cnts = sorted(cnt, key=lambda c: len(c), reverse=True)
-                cnts_top3 = sorted_cnts[:3]
-                contour_path = os.path.join(output_dir, f"{base_name}_contours.npy")
-                np.save(contour_path, np.array(cnts_top3, dtype=object))
     
             if not calibration_saved:
                 calibration_path = os.path.join(output_dir, 'calibration_factor.npy')
                 np.save(calibration_path, np.array([calibration_factor]))
                 calibration_saved = True
     
-            if timer:
-                print(f"{n + 1}/{len(file_list)}")
+        centers = np.array(centers)
+        centers_path = os.path.join(output_dir, "centers.npy")
+        np.save(centers_path, centers)
+
                     
     @staticmethod
     def video(maps_dir, calibration_factor=None, frame_final=300, n_extra_frames=20):
-    
 
         if calibration_factor is None:
             calibration_path = os.path.join(maps_dir, 'calibration_factor.npy')
@@ -550,34 +547,46 @@ class analyze:
         print(f"Saved in: {output_path}")
         
     @classmethod
-    def confined_peaks(cls, image, cnt= None, **kwargs):
-        if cnt is None:
-            _, cnts = cls.mask(image,**kwargs,)
+    def confined_peaks(cls, image=None, cnt=None, image_shape=None, smoothed=0, percentage=80):
+        if cnt is None and image is None:
+            raise ValueError("Need image or contours to work")
+        elif cnt is None and image is not None:
+            _, cnts = cls.mask(image,
+                               smoothed=smoothed,
+                               percentage=percentage)
             plt.figure()
             plt.imshow(image)
             for c in cnts:
-                plt.scatter(c[:, 1], c[:, 0],s = 1, c = "red")
-            cnt = cnts[1]       # TODO: select the correct index
-        
-        height, width = image.shape[:2]
-            
+                plt.scatter(c[:, 1], c[:, 0], s=1, c="red")
+            cnt = cnts[1]  # TODO: select the correct index
+    
+        if image is not None and image_shape is None:
+            height, width = image.shape[:2]
+        elif image is None and image_shape is not None:
+            height, width = image_shape[:2]
+        else:
+            raise ValueError("Need image or image_shape to get size")
+    
         cnt = cnt.reshape(-1, 2)
         r = cnt[:, 1]
         c = cnt[:, 0]
-            
+    
         mask = np.zeros((height, width), dtype=np.uint16)
         rr, cc = polygon(r, c, mask.shape)
         mask[rr, cc] = 1
-            
+    
         labeled = label(mask)
         props = regionprops(labeled)
-            
+    
         if props:
             cy, cx = props[0].centroid
-            return cy, cx
-        else: 
-            raise ValueError("Idk wtf happened")
-    
+            angle_rad = props[0].orientation
+            angle_deg = (np.degrees(angle_rad) + 180) % 180  # Siempre entre 0 y 180
+            return int(cy), int(cx), angle_deg
+        else:
+            return None
+
+        
     @classmethod
     def block_split(cls,map_folder, t_limit=None, num_blocks=64, block_index=0):
         file_list = sorted([
@@ -611,46 +620,46 @@ class analyze:
         return np.transpose(maps, (1, 2, 0))
     
     @classmethod
-    def spectrogram(cls,map_folder = None,array = None, fs=500, show = False, **kwargs):
-        
+    def spectrogram(cls,map_folder = None,array = None, fs=125, show = False, **kwargs):
+    
         '''
         Processing time
             - For map_folder: ∼81s
             - For array: ∼121ms (show = True) / 344 μs ± 3.78 μs (show = False)
             - For an entire dataset: ∼1:26:24s
         '''
-        
+    
         signal_kwargs = {k: kwargs[k] for k in ['nperseg', 'noverlap', 'window'] if k in kwargs}
         block_kwargs = {k: kwargs[k] for k in ['t_limit', 'num_blocks', 'block_index'] if k in kwargs}
         from scipy import signal
         if map_folder == None:      
             if array is not None:   # Spectrogram for some point
-            
+        
                 f, t, Sxx = signal.spectrogram(array, fs=fs, **signal_kwargs)
                 if show:
                     plt.figure(figsize=(8, 4))
-                    plt.pcolormesh(t, f, np.sqrt(Sxx), shading='gouraud')
+                    plt.pcolormesh(t, f, np.log10(Sxx), shading='gouraud')
                     plt.ylabel('Frequency [Hz]')
                     plt.xlabel('Time [sec]')
                     plt.title('Spectrogram of some point')
                     plt.colorbar(label='Amplitude (mm)')
                     plt.tight_layout()
                     plt.show()
-                return f,t,Sxx
-            
+                return t,f,Sxx
+        
             else:
                 raise ValueError("Any map_folder or array is needed")
         else:
             if array == None:       # Spectrogram for a block
                 maps = cls.block_split(map_folder, **block_kwargs)
-            
+        
                 ny, nx, N = maps.shape
-            
+        
                 # Example to get output shapes
                 f, t, Sxx_example = signal.spectrogram(maps[0, 0, :], fs=fs, **signal_kwargs)
                 nf = len(f)
                 nt = len(t)
-            
+        
                 Sxx_all = np.empty((ny, nx, nf, nt))
 
                 # Loop over pixels
@@ -665,34 +674,61 @@ class analyze:
                                     np.arange(len(ts)),
                                     np.arange(len(ts))[~np.isnan(ts)],
                                     ts[~np.isnan(ts)]
-                                )
+                                    )
                             _, _, Sxx = signal.spectrogram(ts, fs=fs, **signal_kwargs)
                             Sxx_all[iy, ix] = Sxx
 
                 Sxx_avg = np.nanmean(Sxx_all, axis=(0, 1))  # shape (nf, nt)
-                
+            
                 if show:
                     plt.figure(figsize=(8, 4))
-                    plt.pcolormesh(t, f, np.sqrt(Sxx), shading='gouraud')
+                    plt.pcolormesh(t, f, np.log10(Sxx), shading='gouraud')
                     plt.ylabel('Frequency [Hz]')
                     plt.xlabel('Time [sec]')
                     plt.title('Average Spectrogram over block')
                     plt.colorbar(label='Amplitude (m)')
                     plt.tight_layout()
                     plt.show()
-            
-                return f, t, Sxx_all, Sxx_avg
+        
+                return t,f, Sxx_all, Sxx_avg
             else:
                 ValueError("map_folder or array is needed, not both")
-            
-
+     
     @classmethod
-    def block_amplitude(cls,map_folder, f0=None, fs=500, mode=1, num_blocks=64, block_index=0, t_limit=None, neighbor = None):
+    def block_amplitude(cls, map_folder, f0=None, tasa=500, mode=1, num_blocks=64, block_index=0, t_limit=[], neighbor = None, zero = 0):
 
-        maps = cls.block_split(map_folder, t_limit=t_limit, num_blocks=block_index, block_index=block_index)
+        file_list = sorted([f for f in os.listdir(map_folder) if f.endswith('_map.npy') and 'calibration_factor' not in f])
+        file_list = file_list[t_limit[0]:t_limit[1]]
+
+
+        initial_map = np.load(os.path.join(map_folder, file_list[0]))
+        H, W = initial_map.shape
+        
+        mask_ceros = (initial_map == 0)
+        
+        mask_validos = ~mask_ceros
+
+        blocks_per_row = int(np.sqrt(num_blocks))
+        block_size = H // blocks_per_row
+
+        i = block_index // blocks_per_row
+        j = block_index % blocks_per_row
+
+        maps = []
+        for f in file_list:
+            m = np.load(os.path.join(map_folder, f)) - zero
+
+            block = m[i*block_size : (i+1)*block_size,j*block_size : (j+1)*block_size]
+            mask_block = mask_validos[i*block_size : (i+1)*block_size,j*block_size : (j+1)*block_size]
+
+            block_masked = np.where(mask_block, block, np.nan)
+            maps.append(block_masked)
+
+        maps = np.stack(maps, axis=0)  # (N, block_size, block_size)
+        maps = np.transpose(maps, (1, 2, 0))  # (block_size, block_size, N)
 
         ny, nx, N = maps.shape
-        dt = 1 / fs
+        dt = 1 / tasa
 
         fft_vals = np.fft.fft(maps, axis=-1)
         fft_freqs = np.fft.fftfreq(N, d=dt)
@@ -700,15 +736,16 @@ class analyze:
         pos_freqs = fft_freqs >= 0
         fft_vals = fft_vals[:, :, pos_freqs]
         fft_freqs = fft_freqs[pos_freqs]
+        
 
         if f0 is None:
             # Promediar magnitud sobre todos los píxeles para robustez
             mean_spectrum = np.nanmean(np.abs(fft_vals), axis=(0, 1))
             peaks, _ = find_peaks(mean_spectrum)
             if len(peaks) == 0:
-                return np.zeros(mode), np.full((ny, nx, mode), None, dtype=object), np.full((ny, nx, mode), None, dtype=object)
+                return np.zeros(mode), np.full((ny, nx, mode), None, dtype=object), np.full((ny, nx, mode), None, dtype=object), None, None
             max_peak_index = peaks[np.argmax(mean_spectrum[peaks])]
-            f0 = fft_freqs[max_peak_index]
+            f0 = fft_freqs[max_peak_index]  
 
         # === Índices de armónicos ===
         harmonics = [f0 * n for n in range(0, mode)]
@@ -725,6 +762,282 @@ class analyze:
             else:
                 amps[:, :, k] = 2 * np.abs(harmonic_vals) / N
             phases[:, :, k] = np.angle(harmonic_vals)
+            
+       # spectrum = np.stack(mean_spectrum, fft_freqs)
 
-        return harmonics, amps, phases
-       
+        return harmonics, amps, phases, mean_spectrum, fft_freqs
+
+    
+    @classmethod
+    def decay(cls,MODE, image_center, cut, distance):
+        '''
+        Parameters
+        ----------
+        MODE : np.array
+            the amplitude matrix of the mode to analyze.
+        image_center : str  
+            Path to the image file (e.g., a TIFF image) from which the 
+            geometric center is automatically determined  
+            for the polar coordinate transformation. 
+            The center is computed using `analyze.confined_peaks`.
+        cut : int
+            Radial index from which the profile is cropped before peak detection.
+        distance : int
+            Distance between peaks as parameter for find_peaks.
+
+        Returns
+        -------
+        A : float  
+            Slope of the linear fit in log scale, corresponding to the exponential decay rate.
+
+        dA : float  
+            Standard error associated with the slope A.
+
+        B : float  
+            Intercept of the linear fit in log scale.
+
+        dB : float  
+            Standard error associated with the intercept B.
+        '''
+        cy, cx = cls.confined_peaks(analyze.load_image(image_center), smoothed = 15, percentage= 90)
+        plt.scatter(cy, cx, s=20, color='red')
+        center = tuple(map(int, (cx, cy)))
+        
+        polar = warp_polar(MODE, center=center, scaling='linear')
+        
+        pnan = np.where(polar != 0, polar, np.nan)
+        
+        fig, axes = plt.subplots(1, 2, figsize=(8, 6))
+
+        # Lista de imágenes y sus transformadas
+        originals = [MODE]
+        polars = [pnan]
+
+        axes[0].imshow(originals[0], cmap='inferno')
+        axes[0].scatter(*center[::-1], c='r', s=10)
+        axes[0].set_title("Imagen original")
+        axes[0].axis('off')
+
+        axes[1].imshow(polars[0], cmap='inferno', aspect='auto')
+        axes[1].set_title("Coordenadas polares")
+        axes[1].set_xlabel("r")
+        axes[1].set_ylabel("θ")
+
+        plt.tight_layout()
+        plt.show()
+        
+        vals = []
+        weights = []
+
+        for i in range(pnan.shape[1]):
+            datos_validos = ~np.isnan(pnan[:, i])
+            val = np.nanmean(pnan[:, i])
+            weight = np.sum(datos_validos)  # calculo promedio y el peso de cada radio
+            vals.append(val)
+            weights.append(weight)
+            
+            
+        R = np.linspace(1, pnan.shape[1] , pnan.shape[1])
+        vals = np.array(vals)
+        weights = np.array(weights)
+
+        plt.figure(figsize=(8, 5))
+        sc = plt.scatter(R, vals, c=weights, cmap='viridis', s=30 + 70 * (weights / np.max(weights)))
+        plt.colorbar(sc, label="Cantidad de datos válidos (peso)")
+        plt.xlabel("r (pixeles)")
+        plt.ylabel("Promedio en θ")
+        plt.title("Perfil radial promedio ponderado")
+        plt.grid(True)
+        plt.show()
+        
+        
+        valores_recortados = vals[cut:]
+        picos_relativos, _ = find_peaks(valores_recortados, distance = distance)
+
+        # Índices absolutos para todo valores33
+        picos_indices = picos_relativos + cut
+
+        picos_r = R[picos_indices] 
+        picos_valores = vals[picos_indices]
+        picos_pesos = weights[picos_indices]
+
+        sigma = np.std(picos_valores)/ np.sqrt(picos_pesos)
+        sigma = np.where(picos_pesos == 0, 1e6, sigma)
+
+        R_rec = R[cut:]
+        
+        plt.figure(figsize=(10, 4))
+        plt.plot(np.arange(cut, len(vals)), valores_recortados, label='Valores recortados')
+        plt.plot(picos_indices, vals[picos_indices], 'ro', label='Picos detectados')
+        plt.xlabel('Índice')
+        plt.ylabel('Valor')
+        plt.title('Picos detectados')
+        plt.legend()
+        plt.grid(True)
+        plt.tight_layout()
+        plt.show()
+        
+        factor = 1
+        picos_valores_scaled = picos_valores * factor
+        sigma_scaled = sigma * factor
+
+        picos_valores_log = np.log(picos_valores_scaled)
+        sigma_log = sigma_scaled / picos_valores_scaled 
+        sigma = sigma_scaled
+        
+        def modelo_lin(x, A, B):
+            return A*x + B
+        popt, pcov = curve_fit(modelo_lin, picos_r, picos_valores_log, p0=[0.0001, 0.0], sigma=sigma_log, absolute_sigma=True)
+
+        y_fit = modelo_lin(R_rec, *popt)
+
+        A, B = popt
+
+        dA, dB = np.sqrt(np.diag(pcov))
+
+        plt.figure(figsize=(10, 6))
+        #plt.plot(Rr_rec, valores_recortados, label='Perfil radial')
+        plt.scatter(picos_r, picos_valores_log, color='darkmagenta', s=80, label='Picos detectados')
+
+        plt.plot(R_rec, y_fit, '--',
+                 label=f'Ajuste exponencial:\nk={A:.6f}±0.00038, B={B:.6f}' ,color='darkcyan')
+        plt.errorbar(picos_r, picos_valores_log, yerr=sigma_log, fmt='o', color='darkmagenta', label='Picos detectados ± sigma')
+
+        plt.xlabel('r (pixeles)')
+        plt.ylabel('Promedio en θ')
+        plt.title('Ajuste ponderado con curve_fit usando pesos')
+        plt.legend()
+        plt.grid(True)
+        plt.tight_layout()
+        plt.show()
+        
+        return A, dA, B, dB
+    
+    @classmethod
+    def rings(cls,image, center, radio,tita=0, all_=False):
+        cy = center[1]
+        cx = center[0]
+        if all_:
+            thetas = np.linspace(0, 2*np.pi, 360, endpoint=False)
+        else:
+            thetas = [np.deg2rad(tita)]
+        
+        cx_ = []
+        cy_ = []
+        for theta in thetas:
+            dx = radio * np.cos(theta)
+            dy = -radio * np.sin(theta)
+            px = int(round(cx + dx))
+            py = int(round(cy + dy))
+            cx_.append(px)
+            cy_.append(py)
+        return(cx_, cy_)
+
+    
+    @staticmethod    
+    def dynamic_center_signal(map_folder, image_shape, centers, radio, tita=0, all_=False, show=True):
+        """
+        Detects the center of the second largest contour in each frame and extracts height values at points 
+        located at a specified radius from that center.
+
+        Parameters
+        ----------
+        map_folder : str
+            Path to the folder containing contour and map files.
+        image_shape : tuple of int
+            Shape of the images/maps as (height, width).
+        radio : float
+            Distance from the detected center at which to sample the height values.
+        tita : float, optional
+            Angle in degrees at which to sample the height value around the center (default is 0).
+        all : bool, optional
+            If True, samples height values at all angles (0 to 360 degrees) around the center; 
+            if False, samples only at the angle specified by `tita` (default is False).
+        plot : bool, optional
+            If True, plots the first frame with the detected center and sampling points (default is True).
+
+        Returns
+        -------
+        np.ndarray
+            Array of mean height values extracted for each frame; NaN if no valid values found or 
+            if less than two contours are detected in a frame.
+
+        Raises
+        ------
+        ValueError
+            If the number of contour files does not match the number of map files.
+        """
+        # Archivos
+        #contour_files = sorted([f for f in os.listdir(map_folder) if f.endswith('_contours.npy')])
+        map_files = sorted([f for f in os.listdir(map_folder) if f.endswith('_map.npy') and 'calibration_factor' not in f])
+
+        # if len(contour_files) != len(map_files):
+        #     raise ValueError("Cantidad de contornos y mapas no coincide")
+
+        senal = []
+
+        for i, m_file in enumerate(tqdm(map_files)):
+            #contornos = np.load(os.path.join(map_folder, c_file), allow_pickle=True)
+            mapa = np.load(os.path.join(map_folder, m_file))
+            cx, cy = centers[i]
+
+            if all_:
+                thetas = np.linspace(0, 2*np.pi, 360, endpoint=False)
+            else:
+                thetas = [np.deg2rad(tita)]
+
+            valores = []
+            for theta in thetas:
+                dx = radio * np.cos(theta)
+                dy = -radio * np.sin(theta)
+                px = int(round(cx + dx))
+                py = int(round(cy + dy))
+
+                if 0 <= py < image_shape[0] and 0 <= px < image_shape[1]:
+                    v = mapa[py, px]
+                    if not np.isnan(v) and v != 0:
+                        valores.append(v)
+
+            if valores:
+                senal.append(np.mean(valores))  
+            else:
+                senal.append(np.nan)
+
+            
+            if show and i == 0:
+                plt.figure(figsize=(6, 6))
+                plt.imshow(mapa, cmap='viridis')
+                plt.scatter(cx, cy, color='cyan', label='Centro')
+                for theta in thetas:
+                    px = int(round(cx + radio * np.cos(theta)))
+                    py = int(round(cy - radio * np.sin(theta)))
+                    if 0 <= py < image_shape[0] and 0 <= px < image_shape[1]:
+                        plt.scatter(px, py, color='red')
+                plt.title(f'Frame {i}: centro y puntos sobre círculo')
+                plt.legend()
+                plt.axis('equal')
+                plt.tight_layout()
+                plt.show()
+                
+                cy = centers[:, 0]
+                cx = centers[:, 1]
+                frames = np.arange(len(centers))
+
+                plt.figure(figsize=(10, 4))
+
+                plt.subplot(1, 2, 1)
+                plt.plot(frames, cy, marker='o')
+                plt.title("Coordenada y del centro")
+                plt.xlabel("Frame")
+                plt.ylabel("cy")
+
+                plt.subplot(1, 2, 2)
+                plt.plot(frames, cx, marker='o')
+                plt.title("Coordenada x del centro")
+                plt.xlabel("Frame")
+                plt.ylabel("cx")
+
+                plt.tight_layout()
+                plt.show()
+
+        return np.array(senal)

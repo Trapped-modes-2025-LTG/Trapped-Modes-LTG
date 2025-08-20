@@ -45,7 +45,7 @@ class PsiSolver:
                 sol[i, j] = self.psi_n(1, r[i, j], y[i, j]) if (r[i, j] < self.selected_c) else self.psi_n(2, r[i, j], y[i, j])
         return sol
     
-def freq_mode(r,c_index,H,sigma = 0.0728 ,rho = 1002,eq = 0, g = 9.81):
+def freq_mode(r,c_index,H,sigma = 0.0728 ,rho = 1002,eq = "gravedad", g = 9.81):
     '''
     El cero de la función de Bessel J(c) = 0 corresponde al radio del anillo.
     Como el problema está adimensionalizado,  kr = c --> k = c/r.
@@ -59,7 +59,12 @@ def freq_mode(r,c_index,H,sigma = 0.0728 ,rho = 1002,eq = 0, g = 9.81):
     def only_g(k):
         return np.sqrt(g*k)
     
-    return only_g(k) if eq==1 else gc(k)
+    if eq == "gravedad":
+        return only_g(k)
+    elif eq == "capilar":
+        return gc(k)
+    else: 
+        raise ValueError("eq must me gravedad or capilar")
     
 if __name__ == "__main__":
     # First for a psi that doesn´t evolve in time
