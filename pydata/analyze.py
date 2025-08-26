@@ -13,16 +13,11 @@ import pandas as pd
 import matplotlib.pyplot as plt
 import matplotlib.animation as animation
 from scipy.ndimage import uniform_filter
-import cv2
-#from skimage.filters import sobel
 from skimage import io
-from skimage.draw import polygon
-from skimage.measure import regionprops, label,find_contours
-from scipy.ndimage import maximum_filter
+from skimage.measure import regionprops, label
 from scipy.signal import find_peaks
 from skimage.transform import warp_polar
-from scipy.optimize import curve_fit
-
+from tqdm import tqdm
 
 class analyze:
     @classmethod
@@ -32,376 +27,126 @@ class analyze:
     
         Parameters
         ----------
-        path: str - Path to the image file.
+        path: str
+            Path to the image file.
     
         Returns
         -------
-        ndarray - 2D grayscale image as a float32 NumPy array.
+        ndarray
+            2D grayscale image as a float32 NumPy array.
         '''
         return io.imread(path, as_gray=True).astype(np.float32)
-
-    @classmethod 
-    def side(cls,x,y,binary):
-        h, w = binary.shape
-        x = int(x)
-        y = int(y)
-        if y == 0 or y == w-1: 
-            if binary[y, x+1] == 0: 
-                return "right"
-            else:
-                return 'left'
-        elif x == 0 or x == h-1:
-            if binary[y+1,x] == 0:
-                return "up"
-            else:
-                return "down"
-            
-    @classmethod 
-    def borders(cls, side, ps, maxim):
-        x0, y0 = ps[0]
-        x1, y1 = ps[1]
-        x2, y2 = ps[2]
-        x3, y3 = ps[3]
-        
-        if side == "right":
-            xs_derecha = [
-                p[1] for i, p in enumerate(ps)
-                if i % 2 == 0 and p[0] == y0 and p[1] > x0
-            ]
-        
-            if xs_derecha:
-                x_stop_val = min(xs_derecha)
-
-                for i, p in enumerate(ps):
-                    if i % 2 == 0 and p[0] == y0 and p[1] == x_stop_val:
-                        del ps[i:i+2]  # Eliminar el punto 
-                        break
-            
-                x_stop = x_stop_val - 1
-                camino_x0 = np.linspace(x0, x_stop, int(x_stop - x0) + 1)
-                camino_y0 = np.full_like(camino_x0, y0)
-            else:
-                pass
-            #     x_stop = maxim
-            #     camino_x0 = np.linspace(x0, x_stop, int(x_stop - x0) + 1)
-            #     camino_y0 = np.full_like(camino_x0, y0)
-        
-            #     found = False
-            #     segmento_x = []
-            #     segmento_y = []
-        
-            #     if y0 == maxim - 1:
-            #         for dy in range(1, maxim):
-            #             new_y = y0 - dy
-            #             if new_y < 0:
-            #                 break
-            #             if binary[new_y, x_stop] != 0:
-            #                 segmento_x = [x_stop] * (dy + 1)
-            #                 segmento_y = list(range(y0, new_y - 1, -1))
-            #                 found = True
-            #                 break
-            #     else:
-            #         for dy in range(1, height):
-            #             new_y = y0 + dy
-            #             if new_y >= height:
-            #                 break
-            #             if binary[new_y, x_stop] != 0:
-            #                 segmento_x = [x_stop] * (dy + 1)
-            #                 segmento_y = list(range(y0, new_y + 1))
-            #                 found = True
-            #                 break
-        
-            #     if found:
-            #         camino_x0 = np.concatenate([camino_x0, segmento_x])
-            #         camino_y0 = np.concatenate([camino_y0, segmento_y])
-        
-            plt.plot(camino_x0, camino_y0, lw=2, c="lime", zorder=10)
-            pass
-        return
     
     @classmethod
-    def correct_contours(cls, contornos, binary):
-        contornos = sorted(contornos, key=lambda c: len(c), reverse=True)
-        
-        threshold = 300 # TODO: ver como calcular esto
-        
-        inner_contours = []
-        out_contours = []
-        
-        for c in contornos[:5]:
-            p0 = c[0]
-            p1 = c[-1]
-            distancia = np.linalg.norm(p0 - p1)
-        
-            if distancia <= 1:
-                inner_contours.append(c)
-            else:
-                out_contours.append(c)
-        
-        if len(inner_contours) > 1:
-            inner_contours = inner_contours[:2]  
-            if len(inner_contours[1]) <= threshold:
-                inner_contours = [inner_contours[0]]
-            else: 
-                return inner_contours
-        
-        out_contours = [c for c in out_contours if len(c) >= threshold]
-                
-        if len(out_contours) == 1:
-            cnt1 = out_contours[0].astype(np.int32)
-            
-            if not cnt1[-1][0] == cnt1[0][0] or cnt1[-1][1] == cnt1[0][1]:
-            
-                p1 = cnt1[0]
-                p2 = cnt1[-1]
-                
-                y_max = binary.shape[0] - 1 
-                
-                caminos_y = []
-                caminos_x = []
-                    
-                for y, x in [p1, p2]:
-                    y, x = int(y), int(x)
-                    
-                    if x == 0:
-                        if y > y_max / 2:
-                            camino_y = np.linspace(y, y_max, int(y_max - y))
-                        else:
-                            camino_y = np.linspace(0, y, int(y))
-                        camino_x = np.zeros_like(camino_y)
-                    
-                    elif y == 0:
-                        if x > y_max / 2:
-                            camino_x = np.linspace(x, y_max, int(y_max - x))
-                        else:
-                            camino_x = np.linspace(0, x, int(x))
-                        camino_y = np.zeros_like(camino_x)
-                
-                    elif x == y_max:
-                        if y > y_max / 2:
-                            camino_y = np.linspace(y, y_max, int(y_max - y))
-                        else:
-                            camino_y = np.linspace(0, y, int(y))
-                        camino_x = np.full_like(camino_y, y_max)
-                
-                    elif y == y_max:
-                        if x > y_max / 2:
-                            camino_x = np.linspace(x, y_max, int(y_max - x))
-                        else:
-                            camino_x = np.linspace(0, x, int(x))
-                        camino_y = np.full_like(camino_x, y_max)
-                    
-                    caminos_y.append(camino_y)
-                    caminos_x.append(camino_x)
-        
-            cnt2 = inner_contours[0]
-            
-            camino1 = np.stack([caminos_y[0], caminos_x[0]], axis=1).astype(np.int32)
-            camino2 = np.stack([caminos_y[1], caminos_x[1]], axis=1).astype(np.int32)
-                
-            cnt1 = np.concatenate([cnt1, camino1, camino2])
- 
-            return cnt1, cnt2
-        
-        elif len(out_contours) == 2:
-            
-            ps = []         # [  [yi0, xi0], [yf0, xf0]  ,  [yi1, xi1], [yf1, xf1]  ]
-            # plt.figure()
-            # plt.imshow(binary)
-
-            for c in out_contours:
-                cix = c[:, 1][0]
-                ciy = c[:, 0][0]
-                cfx = c[:, 1][-1]
-                cfy = c[:, 0][-1]
-                ps.append([int(ciy), int(cix)])
-                ps.append([int(cfy), int(cfx)])
-
-                plt.scatter(c[:, 1], c[:, 0], s = 1, c = "red")
-                plt.scatter(c[:, 1][0], c[:, 0][0], s = 100, c = "cyan")
-                plt.scatter(c[:, 1][-1], c[:, 0][-1], s = 100, c = "black")
-                
-            y0, x0 = ps[0]
-            
-            side_p0 = cls.side(x0, y0, binary)
-            
-            maxim= binary.shape[0]-1
-            
-            # ordenar segun el sentido de las agujas del reloj
-            ps = np.array(ps) 
-            p0 = ps[0]
-            resto = ps[1:]
-            angulos = np.arctan2(resto[:, 0] - p0[0], resto[:, 1] - p0[1])
-            indices_orden = np.argsort(angulos)
-            resto_ordenado = resto[indices_orden]
-            ps_o = np.vstack([p0, resto_ordenado])
-            
-            if side_p0 == "right":
-                pass
-            if side_p0 == "left":
-                pass
-            if side_p0 == "down": 
-                pass
-            if side_p0 == "down":
-                pass
-            
-            # if side_p0 == "right":
-            #     xs_derecha = [
-            #         p[1] for i, p in enumerate(ps)
-            #         if i % 2 == 0 and p[0] == y0 and p[1] > x0
-            #     ]
-            
-            #     if xs_derecha:
-            #         x_stop_val = min(xs_derecha)
-    
-            #         for i, p in enumerate(ps):
-            #             if i % 2 == 0 and p[0] == y0 and p[1] == x_stop_val:
-            #                 del ps[i:i+2]  # Eliminar el punto 
-            #                 break
-                
-            #         x_stop = x_stop_val - 1
-            #         camino_x0 = np.linspace(x0, x_stop, int(x_stop - x0) + 1)
-            #         camino_y0 = np.full_like(camino_x0, y0)
-            #     else:
-            #         x_stop = maxim
-            #         camino_x0 = np.linspace(x0, x_stop, int(x_stop - x0) + 1)
-            #         camino_y0 = np.full_like(camino_x0, y0)
-            
-            #         height = binary.shape[0]
-            #         found = False
-            #         segmento_x = []
-            #         segmento_y = []
-            
-            #         if y0 == height - 1:
-            #             for dy in range(1, height):
-            #                 new_y = y0 - dy
-            #                 if new_y < 0:
-            #                     break
-            #                 if binary[new_y, x_stop] != 0:
-            #                     segmento_x = [x_stop] * (dy + 1)
-            #                     segmento_y = list(range(y0, new_y - 1, -1))
-            #                     found = True
-            #                     break
-            #         else:
-            #             for dy in range(1, height):
-            #                 new_y = y0 + dy
-            #                 if new_y >= height:
-            #                     break
-            #                 if binary[new_y, x_stop] != 0:
-            #                     segmento_x = [x_stop] * (dy + 1)
-            #                     segmento_y = list(range(y0, new_y + 1))
-            #                     found = True
-            #                     break
-            
-            #         if found:
-            #             camino_x0 = np.concatenate([camino_x0, segmento_x])
-            #             camino_y0 = np.concatenate([camino_y0, segmento_y])
-            
-            #     plt.plot(camino_x0, camino_y0, lw=2, c="lime", zorder=10)
-            
-            cont_unido = None
-            cnt2 = inner_contours[0]
-            print()
-            return cont_unido, cnt2
-        
-    @classmethod
-    def mask(cls,image,smoothed, percentage, sigma_background=100, show_mask = False):
+    def mask(cls,image, smoothed = 14, show_mask = False, center = False):
         '''
-        lipsum.
+        Creates a mask for the region related to the floating structure and detects its center.
     
         Parameters
         ----------
-        image: ndarray - 2D grayscale image.
-        smoothed: float - .
-        percentage: float - .
-        sigma_background: int - 
-        alpha: int - .
-        show_mask: False : Bool - Decide if the proccess used is ploted or not.
-        
+        image : ndarray
+            2D grayscale image as a NumPy array .
+        smoothed : int, optional
+            Size of the smoothing filter applied before masking.
+        show_mask : bool, default=False
+            If True, displays the generated mask.
+        center: bool, default=False
+            If True, calculates the center as a tuple (cy, cx)
+    
         Returns
         -------
-        mask : .
+        mask : ndarray of bool
+            2D boolean mask of the region of interest. Pixels inside the region are True.
+        center : tuple of int, optional
+            (cy, cx) coordinates of the region's centroid. Returned only if `center=True`.
+
         '''
-
-        def _find_large_contours(binary):
-            contours = find_contours(binary, level=0.5)
-            if percentage > 0:
-                def area_contorno(contour):
-                    x = contour[:, 1]
-                    y = contour[:, 0]
-                    return 0.5 * np.abs(np.dot(x, np.roll(y, 1)) - np.dot(y, np.roll(x, 1)))
-                areas = np.array([area_contorno(c) for c in contours])
-                umbral = np.percentile(areas, percentage)
-                return [c for c, a in zip(contours, areas) if a >= umbral]
-            return contours
+        smooth = uniform_filter(image, size=smoothed)
+        threshold = np.mean(smooth)
+        Mask = smooth < threshold
+        labels = label(Mask)  
+        regions = regionprops(labels)
+        regions_sorted = sorted(regions, key=lambda r: r.area, reverse=True)
         
-        def _mostrar_resultados(binary, contornos, imagen_contorno):
-            plt.figure()
 
-            plt.subplot(1,3, 1)
-            plt.imshow(image, cmap='gray')
-            for c in contornos:
-                plt.scatter(c[:, 1], c[:, 0], s=1, c='cyan')
-            plt.title("Original + edges")
-            plt.axis('off')
+        labels = label(Mask)
+        regions = regionprops(labels)
+        regions_sorted = sorted(regions, key=lambda r: r.area, reverse=True)
 
-            plt.subplot(1,3, 2)
-            plt.imshow(smooth, cmap='gray')
-            plt.title("Smoothed")
-            plt.axis('off')
+        r = regions_sorted[0]
 
-            plt.subplot(1,3, 3)
-            plt.imshow(imagen_contorno, cmap='gray')
-            for c in contornos:
-                plt.scatter(c[:, 1], c[:, 0], s=1, c='cyan')
-            plt.title("Binarized")
-            plt.axis('off')
+        mask = labels == r.label  
 
-            print(f"Cantidad de contornos detectados: {len(contornos)}")
+        masked = image * mask
+
+        
+        if show_mask: 
+            fig, ax = plt.subplots(1, 3, figsize=(10,4))
+                
+            ax[0].imshow(image, cmap="gray")
+            ax[0].set_title("Original image")
+
+            ax[1].imshow(mask, cmap="gray")
+            ax[1].set_title("Mask")
+
+            ax[2].imshow(masked, cmap="gray")
+            ax[2].set_title("Masked image")
+
+            for a in ax:
+                a.axis("off")  # opcional, quita los ejes
 
             plt.tight_layout()
             plt.show()
-        
-        smooth = uniform_filter(image, size=smoothed)
-            
-        threshold = np.mean(smooth)
-        binary = (smooth > threshold).astype(np.uint8) * 255
-        contornos = _find_large_contours(binary)
-        imagen_contorno = binary
-        if show_mask:
-            _mostrar_resultados(binary, contornos, imagen_contorno)
-        cnts = cls.correct_contours(contornos, binary)
-    
-        mask_shape = image.shape[:2]  
-        outer_mask = np.zeros(mask_shape, dtype=np.uint16)
-        inner_mask = np.zeros(mask_shape, dtype=np.uint16)
-    
-        cnt_outer = np.asarray(cnts[0], dtype=np.int32)
-        cnt_inner = np.asarray(cnts[1], dtype=np.int32)
-        
-        if cnt_outer.ndim == 2:
-            cnt_outer = cnt_outer[:, np.newaxis, :]
-        if cnt_inner.ndim == 2:
-            cnt_inner = cnt_inner[:, np.newaxis, :]
-        
-        cv2.drawContours(outer_mask, [cnt_outer], -1, color=1, thickness=cv2.FILLED)
-        cv2.drawContours(inner_mask, [cnt_inner], -1, color=1, thickness=cv2.FILLED)
-    
-        between_mask = outer_mask - inner_mask
-        between_mask[between_mask < 0] = 0
-        mask = (1-between_mask).astype(float)
-        
-        contornos = [cnts[0], cnts[1]]
-        
-        if show_mask:
-            _mostrar_resultados(binary, contornos, imagen_contorno)
-        
-        return mask, contornos
 
+        if center: 
+            return mask, cls.center(mask)
+        else:
+            return mask
+        
+        
+    @classmethod
+    def center(cls, mask):
+        '''
+        Calculates the center of the region inside the floating structure.
+    
+        Parameters
+        ----------
+        mask : ndarray of bool
+            2D boolean mask of the region of structures cavity.
+    
+        Returns
+        -------
+        center : tuple of int
+            (cy, cx) coordinates of the region's centroid.
+        '''
+        inv_mask = np.logical_not(mask)
+
+        label_img = label(inv_mask)
+        props = regionprops(label_img)
+
+        n_rows, n_cols = mask.shape
+        hole_regions = []
+
+        for region in props:
+            min_row, min_col, max_row, max_col = region.bbox
+            if min_row > 0 and min_col > 0 and max_row < n_rows and max_col < n_cols: 
+                hole_regions.append(region)                                           
+                                                                         
+        if hole_regions:
+            largest_hole = max(hole_regions, key=lambda r: r.area)
+            Cy, Cx = largest_hole.centroid
+            cy, cx = int(Cy), int(Cx)
+            center = (cy, cx)
+        #     angle_rad = largest_hole.orientation
+        #     angle_deg = (np.degrees(angle_rad) + 180) % 180  # 0–180°
+        #     print(f"Centroide del agujero: ({cy:.2f}, {cx:.2f}), angle: {angle_deg:.2f}")
+        # else:
+        #     print("No se encontró agujero cerrado dentro del objeto.")
+        return center
+    
     @classmethod
     def folder(cls, reference_path, displaced_dir, layers, square_size,
-           smoothed=None, percentage=None, sigma_background=100,
-           show_mask=False, timer=False, only="mask"):
+           smoothed=None,show_mask=False):
         '''
         Processes a folder of ".tif" images to compute height maps using the FCD method.
     
@@ -417,21 +162,13 @@ class analyze:
             Size of square pattern at rest.
         smoothed : int, optional
             Size of the smoothing filter applied before masking.
-        percentage : int, optional
-            Percentage threshold for contour masking.
-        sigma_background : int, default=100
-            Sigma for the background subtraction filter.
         show_mask : bool, default=False
             If True, displays the generated mask and contours.
-        timer : bool, default=False
-            If True, prints progress during processing.
-        only : str, default="mask"
-            Determines what to save: "mask", "contours", or "both".
     
         Returns
         -------
         None
-            Saves height maps and/or contours in a "maps" folder inside displaced_dir.
+            Saves height maps in a "maps" folder inside displaced_dir.
         '''
         
         reference = cls.load_image(reference_path)
@@ -441,7 +178,9 @@ class analyze:
         calibration_saved = False
         file_list = sorted(os.listdir(displaced_dir))
     
-        for n, fname in enumerate(file_list):
+        centers = []    
+    
+        for fname in tqdm(file_list):
             if not (fname.endswith('.tif') and 'reference' not in fname):
                 continue
     
@@ -449,21 +188,22 @@ class analyze:
             displaced_image = cls.load_image(displaced_path)
     
             mask_applied = False
-            mask = None
-            cnt = None
     
-            if smoothed and percentage:
-                mask, cnt = cls.mask(
-                    displaced_image,
-                    smoothed,
-                    percentage,
-                    sigma_background=sigma_background,
-                    show_mask=show_mask
-                )
-                displaced = mask.T * displaced_image
-                displaced_w = np.where(mask.T, displaced, reference)
-                image_to_use = displaced_w
+            if smoothed:
+                Mask = cls.mask(displaced_image, smoothed = smoothed)
+                
+                mask = np.logical_not(Mask)
+                
+                img_result = displaced_image.copy()
+                img_result[mask] = reference[mask]
+                
+                image_to_use = img_result
+                
+                center = cls.center(Mask)
+                centers.append(center)
+                
                 mask_applied = True
+            
             else:
                 image_to_use = displaced_image
     
@@ -473,33 +213,47 @@ class analyze:
                 square_size,
                 layers
             )
-    
+            
             if mask_applied:
-                height_map *= mask.T
+                height_map *= mask
     
             base_name = fname.replace('.tif', '')
     
-            if only in {"mask", "both"}:
-                output_path = os.path.join(output_dir, f"{base_name}_map.npy")
-                np.save(output_path, height_map)
-    
-            if only in {"contours", "both"} and cnt is not None:
-                sorted_cnts = sorted(cnt, key=lambda c: len(c), reverse=True)
-                cnts_top3 = sorted_cnts[:3]
-                contour_path = os.path.join(output_dir, f"{base_name}_contours.npy")
-                np.save(contour_path, np.array(cnts_top3, dtype=object))
+            output_path = os.path.join(output_dir, f"{base_name}_map.npy")
+            np.save(output_path, height_map)
     
             if not calibration_saved:
                 calibration_path = os.path.join(output_dir, 'calibration_factor.npy')
                 np.save(calibration_path, np.array([calibration_factor]))
                 calibration_saved = True
     
-            if timer:
-                print(f"{n + 1}/{len(file_list)}")
-                    
+        centers = np.array(centers)
+        centers_path = os.path.join(output_dir, "centers.npy")
+        np.save(centers_path, centers)
+
     @staticmethod
     def video(maps_dir, calibration_factor=None, frame_final=300, n_extra_frames=20):
-    
+        '''
+        Creates and saves a video from a series of height maps.
+
+        Parameters
+        ----------
+        map_dir : str
+            Path to the folder containing '_map.npy' files and calibration factor.
+        calibration_factor : float, optional, default=None
+            Scaling factor to convert pixel units to meters. 
+        frame_final : int, optional, default=300
+            Maximum frame index to display. If the number of maps is smaller, the last available frame is used..
+        n_extra_frames : TYPE, optional, default=20
+            Number of extra frames to hold the last frame at the end of the animation.
+            
+
+        Returns
+        -------
+        None
+            Saves a .mp4 video in the same directory as the script.
+
+        '''
 
         if calibration_factor is None:
             calibration_path = os.path.join(maps_dir, 'calibration_factor.npy')
@@ -551,43 +305,32 @@ class analyze:
         output_path = os.path.join(base_dir, 'video.mp4')
         ani.save(output_path, writer='ffmpeg', fps=30)
         print(f"Saved in: {output_path}")
-        
-    @classmethod
-    def confined_peaks(cls, image, cnt= None, smoothed = 0, percentage = 80):
-        if cnt is None:
-            _, cnts = cls.mask(image,
-                                smoothed = smoothed, 
-                                percentage = percentage,
-                                # mask_save= False,
-                                # show_mask = False
-                                )
-            plt.figure()
-            plt.imshow(image)
-            for c in cnts:
-                plt.scatter(c[:, 1], c[:, 0],s = 1, c = "red")
-            cnt = cnts[1]       # TODO: select the correct index
-        
-        height, width = image.shape[:2]
-            
-        cnt = cnt.reshape(-1, 2)
-        r = cnt[:, 1]
-        c = cnt[:, 0]
-            
-        mask = np.zeros((height, width), dtype=np.uint16)
-        rr, cc = polygon(r, c, mask.shape)
-        mask[rr, cc] = 1
-            
-        labeled = label(mask)
-        props = regionprops(labeled)
-            
-        if props:
-            cy, cx = props[0].centroid
-            return cy, cx
-        else: 
-            pass
+
         
     @classmethod
     def block_split(cls,map_folder, t_limit=None, num_blocks=64, block_index=0):
+        '''
+        Splits a set of height maps into spatial blocks and returns the temporal stack of one block.
+        
+        Parameters
+        ----------
+        map_folder : str
+            Path to the folder containing '_map.npy' files.
+        t_limit : int, default=None
+            Sets a limit to the amount files to analize.
+        num_blocks : int, optional, default=64
+            Total number of blocks in which the map is divided.
+        block_index : int, optional, default=0
+            Index of the block to process.
+
+        Returns
+        -------
+        maps : ndarray of shape (block_size, block_size, N)
+            3D array containing the selected block over N time frames.
+            
+        Pixels that were zero in the first map are set to NaN.
+
+        '''
         file_list = sorted([
             f for f in os.listdir(map_folder)
             if f.endswith('_map.npy') and 'calibration_factor' not in f
@@ -619,13 +362,58 @@ class analyze:
         return np.transpose(maps, (1, 2, 0))
     
     @classmethod
-    def spectrogram(cls,map_folder = None,array = None, fs=500, show = False, **kwargs):
+    def spectrogram(cls,map_folder = None,array = None, fs=125, show = False, **kwargs):
     
         '''
-        Processing time
-            - For map_folder: ∼81s
-            - For array: ∼121ms (show = True) / 344 μs ± 3.78 μs (show = False)
-            - For an entire dataset: ∼1:26:24s
+        Computes the spectrogram of a signal or a block of signals.
+
+        Parameters
+        ----------
+        map_folder : str, optional, default=None
+            Path to a folder containing the reference images for block processing.
+        array : ndarray, optional, default=None
+            1D array representing a single time series for spectrogram calculation.
+        fs : int, optional, default=125
+            Sampling frequency of the signal in Hz.
+        show : bool, optional, default=False
+            If True, displays the spectrogram using matplotlib.
+        **kwargs : dict
+            Additional keyword arguments for customization:
+        - Spectrogram parameters (passed to `scipy.signal.spectrogram`):
+            - nperseg : int
+            - noverlap : int
+            - window  : str or tuple or array_like
+        - Block processing parameters (for `map_folder`):
+            - t_limit      : tuple (start, end)
+            - num_blocks   : int
+            - block_index  : int
+
+        Returns
+        -------
+        If `array` is provided and `map_folder` is None:
+            t : ndarray
+                Array of segment times.
+            f : ndarray
+                Array of segment frequencies.
+            Sxx : ndarray
+                Spectrogram of the signal (shape: [frequencies, times]).
+            
+        If `map_folder` is provided and `array` is None:
+            t : ndarray
+                Array of segment times.
+            f : ndarray
+                Array of segment frequencies.
+            Sxx_all : ndarray
+                Spectrogram of each pixel in the block (shape: [ny, nx, nf, nt]).
+            Sxx_avg : ndarray
+                Average spectrogram over all pixels (shape: [nf, nt]).
+        Notes
+        -----
+        Processing time:
+            - Single image (`map_folder=None`): ~121 ms (show=True) / 344 μs ± 3.78 μs (show=False)
+            - Entire dataset (`map_folder`): ~1h 26min 24s
+            - Single reference map (~81 s)
+        
         '''
     
         signal_kwargs = {k: kwargs[k] for k in ['nperseg', 'noverlap', 'window'] if k in kwargs}
@@ -637,14 +425,14 @@ class analyze:
                 f, t, Sxx = signal.spectrogram(array, fs=fs, **signal_kwargs)
                 if show:
                     plt.figure(figsize=(8, 4))
-                    plt.pcolormesh(t, f, np.sqrt(Sxx), shading='gouraud')
+                    plt.pcolormesh(t, f, np.log10(Sxx), shading='gouraud')
                     plt.ylabel('Frequency [Hz]')
                     plt.xlabel('Time [sec]')
                     plt.title('Spectrogram of some point')
                     plt.colorbar(label='Amplitude (mm)')
                     plt.tight_layout()
                     plt.show()
-                return f,t,Sxx
+                return t,f,Sxx
         
             else:
                 raise ValueError("Any map_folder or array is needed")
@@ -681,7 +469,7 @@ class analyze:
             
                 if show:
                     plt.figure(figsize=(8, 4))
-                    plt.pcolormesh(t, f, np.sqrt(Sxx), shading='gouraud')
+                    plt.pcolormesh(t, f, np.log10(Sxx), shading='gouraud')
                     plt.ylabel('Frequency [Hz]')
                     plt.xlabel('Time [sec]')
                     plt.title('Average Spectrogram over block')
@@ -689,15 +477,53 @@ class analyze:
                     plt.tight_layout()
                     plt.show()
         
-                return f, t, Sxx_all, Sxx_avg
+                return t,f, Sxx_all, Sxx_avg
             else:
                 ValueError("map_folder or array is needed, not both")
      
-    @staticmethod
-    def block_amplitude(map_folder, f0=None, tasa=500, mode=1, num_blocks=64, block_index=0, t_limit=None, neighbor = None, zero = 0):
+    @classmethod
+    def block_amplitude(cls, map_folder, f0=None, tasa=500, mode=1, num_blocks=64, block_index=0, t_limit=[], zero = 0):
+        '''
+        
+        Computes the amplitude and phase of harmonic components for a spatial block of height maps.
+
+        Parameters
+        ----------
+        map_folder : str
+            Path to the folder containing '_map.npy' files.
+        f0 : float, optional, default=None
+            Fundamental frequency to analyze. If None, it is automatically estimated from the mean spectrum.
+        tasa : int, optional, default=500
+            Sampling rate of the temporal signal in Hz.
+        mode : int, optional, default=1
+            Number of harmonics to compute (including the fundamental).
+        num_blocks : int, optional, default=64
+            Total number of blocks in which the map is divided.
+        block_index : int, optional, default=0
+            Index of the block to process.
+        t_limit : list of two ints, optional, default=[]
+            Time slice to select maps from the folder: [start_index, end_index].
+
+        zero : float, optional, default=0
+            Value to subtract from the maps before analysis, for example Mode 0.
+
+        Returns
+        -------
+        harmonics : list of float
+            Frequencies of the fundamental and harmonic components.
+        amps : ndarray of shape (block_size, block_size, mode+1)
+            Amplitude of each harmonic per pixel in the block.
+        phases : ndarray of shape (block_size, block_size, mode+1)
+            Phase of each harmonic per pixel in the block.
+        mean_spectrum : ndarray
+            Mean magnitude spectrum over all valid pixels (used to detect f0 if None).
+        fft_freqs : ndarray
+            Frequencies corresponding to the FFT output.
+
+        '''
 
         file_list = sorted([f for f in os.listdir(map_folder) if f.endswith('_map.npy') and 'calibration_factor' not in f])
-        file_list = file_list[:t_limit]
+        file_list = file_list[t_limit[0]:t_limit[1]]
 
 
         initial_map = np.load(os.path.join(map_folder, file_list[0]))
@@ -712,7 +538,6 @@ class analyze:
 
         i = block_index // blocks_per_row
         j = block_index % blocks_per_row
-
 
         maps = []
         for f in file_list:
@@ -767,417 +592,7 @@ class analyze:
 
         return harmonics, amps, phases, mean_spectrum, fft_freqs
     
-    @staticmethod
-    def decay(MODE, image_center, cut, distance):
-        '''
-        Parameters
-        ----------
-        MODE : np.array
-            the amplitude matrix of the mode to analyze.
-        image_center : str  
-            Path to the image file (e.g., a TIFF image) from which the 
-            geometric center is automatically determined  
-            for the polar coordinate transformation. 
-            The center is computed using `analyze.confined_peaks`.
-        cut : int
-            Radial index from which the profile is cropped before peak detection.
-        distance : int
-            Distance between peaks as parameter for find_peaks.
-
-        Returns
-        -------
-        A : float  
-            Slope of the linear fit in log scale, corresponding to the exponential decay rate.
-
-        dA : float  
-            Standard error associated with the slope A.
-
-        B : float  
-            Intercept of the linear fit in log scale.
-
-        dB : float  
-            Standard error associated with the intercept B.
-        '''
-        cy, cx = analyze.confined_peaks(analyze.load_image(image_center), smoothed = 15, percentage= 90)
-        plt.scatter(cy, cx, s=20, color='red')
-        center = tuple(map(int, (cx, cy)))
-        
-        polar = warp_polar(MODE, center=center, scaling='linear')
-        
-        pnan = np.where(polar != 0, polar, np.nan)
-        
-        fig, axes = plt.subplots(1, 2, figsize=(8, 6))
-
-        # Lista de imágenes y sus transformadas
-        originals = [MODE]
-        polars = [pnan]
-
-        axes[0].imshow(originals[0], cmap='inferno')
-        axes[0].scatter(*center[::-1], c='r', s=10)
-        axes[0].set_title("Imagen original")
-        axes[0].axis('off')
-
-        axes[1].imshow(polars[0], cmap='inferno', aspect='auto')
-        axes[1].set_title("Coordenadas polares")
-        axes[1].set_xlabel("r")
-        axes[1].set_ylabel("θ")
-
-        plt.tight_layout()
-        plt.show()
-        
-        vals = []
-        weights = []
-
-        for i in range(pnan.shape[1]):
-            datos_validos = ~np.isnan(pnan[:, i])
-            val = np.nanmean(pnan[:, i])
-            weight = np.sum(datos_validos)  # calculo promedio y el peso de cada radio
-            vals.append(val)
-            weights.append(weight)
-            
-            
-        R = np.linspace(1, pnan.shape[1] , pnan.shape[1])
-        vals = np.array(vals)
-        weights = np.array(weights)
-
-        plt.figure(figsize=(8, 5))
-        sc = plt.scatter(R, vals, c=weights, cmap='viridis', s=30 + 70 * (weights / np.max(weights)))
-        plt.colorbar(sc, label="Cantidad de datos válidos (peso)")
-        plt.xlabel("r (pixeles)")
-        plt.ylabel("Promedio en θ")
-        plt.title("Perfil radial promedio ponderado")
-        plt.grid(True)
-        plt.show()
-        
-        
-        valores_recortados = vals[cut:]
-        picos_relativos, _ = find_peaks(valores_recortados, distance = distance)
-
-        # Índices absolutos para todo valores33
-        picos_indices = picos_relativos + cut
-
-        picos_r = R[picos_indices] 
-        picos_valores = vals[picos_indices]
-        picos_pesos = weights[picos_indices]
-
-        sigma = np.std(picos_valores)/ np.sqrt(picos_pesos)
-        sigma = np.where(picos_pesos == 0, 1e6, sigma)
-
-        R_rec = R[cut:]
-        
-        plt.figure(figsize=(10, 4))
-        plt.plot(np.arange(cut, len(vals)), valores_recortados, label='Valores recortados')
-        plt.plot(picos_indices, vals[picos_indices], 'ro', label='Picos detectados')
-        plt.xlabel('Índice')
-        plt.ylabel('Valor')
-        plt.title('Picos detectados')
-        plt.legend()
-        plt.grid(True)
-        plt.tight_layout()
-        plt.show()
-        
-        factor = 1
-        picos_valores_scaled = picos_valores * factor
-        sigma_scaled = sigma * factor
-
-        picos_valores_log = np.log(picos_valores_scaled)
-        sigma_log = sigma_scaled / picos_valores_scaled 
-        sigma = sigma_scaled
-        
-        def modelo_lin(x, A, B):
-            return A*x + B
-
-
-        popt, pcov = curve_fit(modelo_lin, picos_r, picos_valores_log, p0=[0.0001, 0.0], sigma=sigma_log, absolute_sigma=True)
-
-
-
-        y_fit = modelo_lin(R_rec, *popt)
-
-        A, B = popt
-
-        dA, dB = np.sqrt(np.diag(pcov))
-
-        plt.figure(figsize=(10, 6))
-        #plt.plot(Rr_rec, valores_recortados, label='Perfil radial')
-        plt.scatter(picos_r, picos_valores_log, color='darkmagenta', s=80, label='Picos detectados')
-
-        plt.plot(R_rec, y_fit, '--',
-                 label=f'Ajuste exponencial:\nk={A:.6f}±0.00038, B={B:.6f}' ,color='darkcyan')
-        plt.errorbar(picos_r, picos_valores_log, yerr=sigma_log, fmt='o', color='darkmagenta', label='Picos detectados ± sigma')
-
-        plt.xlabel('r (pixeles)')
-        plt.ylabel('Promedio en θ')
-        plt.title('Ajuste ponderado con curve_fit usando pesos')
-        plt.legend()
-        plt.grid(True)
-        plt.tight_layout()
-        plt.show()
-        
-        return A, dA, B, dB
-      
-    
-    @staticmethod    
-    def dynamic_center_signal(map_folder, image_shape, radio, tita=0, all=False, plot=True):
-        """
-        Detects the center of the second largest contour in each frame and extracts height values at points 
-        located at a specified radius from that center.
-
-        Parameters
-        ----------
-        map_folder : str
-            Path to the folder containing contour and map files.
-        image_shape : tuple of int
-            Shape of the images/maps as (height, width).
-        radio : float
-            Distance from the detected center at which to sample the height values.
-        tita : float, optional
-            Angle in degrees at which to sample the height value around the center (default is 0).
-        all : bool, optional
-            If True, samples height values at all angles (0 to 360 degrees) around the center; 
-            if False, samples only at the angle specified by `tita` (default is False).
-        plot : bool, optional
-            If True, plots the first frame with the detected center and sampling points (default is True).
-
-        Returns
-        -------
-        np.ndarray
-            Array of mean height values extracted for each frame; NaN if no valid values found or 
-            if less than two contours are detected in a frame.
-
-        Raises
-        ------
-        ValueError
-            If the number of contour files does not match the number of map files.
-        """
-        # Archivos
-        contour_files = sorted([f for f in os.listdir(map_folder) if f.endswith('_contours.npy')])
-        map_files = sorted([f for f in os.listdir(map_folder) if f.endswith('_map.npy') and 'calibration_factor' not in f])
-
-        if len(contour_files) != len(map_files):
-            raise ValueError("Cantidad de contornos y mapas no coincide")
-
-        senal = []
-
-        for i, (c_file, m_file) in enumerate(zip(contour_files, map_files)):
-            contornos = np.load(os.path.join(map_folder, c_file), allow_pickle=True)
-            mapa = np.load(os.path.join(map_folder, m_file))
-
-            if len(contornos) < 2:
-                senal.append(np.nan)
-                continue
-
-            # Centro del segundo contorno más grande
-            contornos = sorted(contornos, key=lambda c: len(c), reverse=True)
-            cnt = contornos[1]
-            centroide = np.mean(cnt, axis=0)
-            cy, cx = centroide  # y, x en imagen
-
-            
-            if all:
-                thetas = np.linspace(0, 2*np.pi, 360, endpoint=False)
-            else:
-                thetas = [np.deg2rad(tita)]
-
-            valores = []
-            for theta in thetas:
-                dx = radio * np.cos(theta)
-                dy = -radio * np.sin(theta)
-                px = int(round(cx + dx))
-                py = int(round(cy + dy))
-
-                if 0 <= py < image_shape[0] and 0 <= px < image_shape[1]:
-                    v = mapa[py, px]
-                    if not np.isnan(v) and v != 0:
-                        valores.append(v)
-
-            if valores:
-                senal.append(np.mean(valores))  
-            else:
-                senal.append(np.nan)
-
-            
-            if plot and i == 0:
-                plt.figure(figsize=(6, 6))
-                plt.imshow(mapa, cmap='viridis')
-                plt.scatter(cx, cy, color='cyan', label='Centro')
-                for theta in thetas:
-                    px = int(round(cx + radio * np.cos(theta)))
-                    py = int(round(cy - radio * np.sin(theta)))
-                    if 0 <= py < image_shape[0] and 0 <= px < image_shape[1]:
-                        plt.scatter(px, py, color='red')
-                plt.title(f'Frame {i}: centro y puntos sobre círculo')
-                plt.legend()
-                plt.axis('equal')
-                plt.tight_layout()
-                plt.show()
-
-        return np.array(senal)
     
     
     
-    
-    
-    
-    # if not cnt1[-1][0] == cnt1[0][0] or cnt1[-1][1] == cnt1[0][1]:
-        
-        #     p1 = cnt1[0]
-        #     p2 = cnt1[-1]
-            
-        #     y_max = image.shape[0] - 1 
-            
-        #     caminos_y = []
-        #     caminos_x = []
-                
-        #     for y, x in [p1, p2]:
-        #         y, x = int(y), int(x)
-                
-        #         if x == 0:
-        #             if y > y_max / 2:
-        #                 camino_y = np.linspace(y, y_max, int(y_max - y))
-        #             else:
-        #                 camino_y = np.linspace(0, y, int(y))
-        #             camino_x = np.zeros_like(camino_y)
-                
-        #         elif y == 0:
-        #             if x > y_max / 2:
-        #                 camino_x = np.linspace(x, y_max, int(y_max - x))
-        #             else:
-        #                 camino_x = np.linspace(0, x, int(x))
-        #             camino_y = np.zeros_like(camino_x)
-            
-        #         elif x == y_max:
-        #             if y > y_max / 2:
-        #                 camino_y = np.linspace(y, y_max, int(y_max - y))
-        #             else:
-        #                 camino_y = np.linspace(0, y, int(y))
-        #             camino_x = np.full_like(camino_y, y_max)
-            
-        #         elif y == y_max:
-        #             if x > y_max / 2:
-        #                 camino_x = np.linspace(x, y_max, int(y_max - x))
-        #             else:
-        #                 camino_x = np.linspace(0, x, int(x))
-        #             camino_y = np.full_like(camino_x, y_max)
-                
-        #         caminos_y.append(camino_y)
-        #         caminos_x.append(camino_x)          
-# class ImageEnhancer:
-#     def __init__(self, imagen, sigma_background=100, alpha=0):
-#         self.image = imagen
-#         self.sigma_background = sigma_background
-#         self.alpha = alpha
-
-#     def _subtract_background(self):
-#         background = gaussian(self.image.astype(np.float32), sigma=self.sigma_background, preserve_range=True)
-#         corrected = self.image.astype(np.float32) - self.alpha * background
-#         return corrected
-
-#     def _find_large_contours(self, binary, percentil_contornos=0):
-#         contours = find_contours(binary, level=0.5)
-#         if percentil_contornos > 0:
-#             def area_contorno(contour):
-#                 x = contour[:, 1]
-#                 y = contour[:, 0]
-#                 return 0.5 * np.abs(np.dot(x, np.roll(y, 1)) - np.dot(y, np.roll(x, 1)))
-#             areas = np.array([area_contorno(c) for c in contours])
-#             umbral = np.percentile(areas, percentil_contornos)
-#             return [c for c, a in zip(contours, areas) if a >= umbral]
-#         return contours
-
-#     # def _find_contours_by_sobel(self, image, levels=[0.1], percentil_contornos=0):
-#     #     edges = sobel(image.astype(float) / 255.0)
-#     #     contornos = []
-#     #     for nivel in levels:
-#     #         c = find_contours(edges, level=nivel)
-#     #         contornos.extend(c)
-#     #     if percentil_contornos > 0 and contornos:
-#     #         def area_contorno(contour):
-#     #             x = contour[:, 1]
-#     #             y = contour[:, 0]
-#     #             return 0.5 * np.abs(np.dot(x, np.roll(y, 1)) - np.dot(y, np.roll(x, 1)))
-#     #         areas = np.array([area_contorno(c) for c in contornos])
-#     #         umbral = np.percentile(areas, percentil_contornos)
-#     #         contornos = [c for c, a in zip(contornos, areas) if a >= umbral]
-#     #     return contornos
-
-#     def procesar(self, suavizado=5, mostrar=True, percentil_contornos=0):
-    
-#         corrected = self._subtract_background()
-#         smooth = uniform_filter(corrected, size=suavizado)
-
-#         # if metodo_contorno == "sobel":
-#         #     contornos = self._find_contours_by_sobel(smooth, levels=[0.16], percentil_contornos=percentil_contornos)
-#         #     imagen_contorno = sobel(smooth.astype(float) / 255.0)
-#         # elif metodo_contorno == "binarizacion":
-#         #     threshold = np.mean(smooth)
-#         #     binary = (smooth > threshold).astype(np.uint8) * 255
-#         #     contornos = self._find_large_contours(binary, percentil_contornos=percentil_contornos)
-#         #     imagen_contorno = binary
-#         # else:
-#         #     raise ValueError(f"Método de contorno no reconocido: {metodo_contorno}")
-        
-#         threshold = np.mean(smooth)
-#         binary = (smooth > threshold).astype(np.uint8) * 255
-#         contornos = self._find_large_contours(binary, percentil_contornos=percentil_contornos)
-#         imagen_contorno = binary
-        
-#         if mostrar:
-#             self._mostrar_resultados( smooth,  imagen_contorno, contornos, 0, imagen_contorno)
-        
-#         return imagen_contorno, contornos
-        
-        
-
-#     def _mostrar_resultados(self, smooth, binary, contornos, threshold, imagen_contorno):
-#         plt.figure()
-
-#         plt.subplot(1,3, 1)
-#         plt.imshow(self.image, cmap='gray')
-#         for c in contornos:
-#             plt.scatter(c[:, 1], c[:, 0], s=1, c='cyan')
-#         plt.title("Original + contornos")
-#         plt.axis('off')
-
-
-#         plt.subplot(1,3, 2)
-#         plt.imshow(smooth, cmap='gray')
-#         plt.title("Suavizado")
-#         plt.axis('off')
-
-#         plt.subplot(1,3, 3)
-#         plt.imshow(imagen_contorno, cmap='gray')
-#         for c in contornos:
-#             plt.scatter(c[:, 1], c[:, 0], s=1, c='cyan')
-#         plt.title("Binarizado")
-#         plt.axis('off')
-
-#         print(f"Cantidad de contornos detectados: {len(contornos)}")
-
-#         plt.tight_layout()
-#         plt.show()
-
-# #%%      
-# base_dir = os.path.dirname(os.path.dirname(__file__))
-
-# tif_folder = os.path.join(base_dir, "datos","toroide_deteccion")
-
-# tif_files = [f for f in os.listdir(tif_folder) if f.lower().endswith('.tif')]
-
-
-# df_tif = pd.DataFrame({
-#     'nombre_archivo': tif_files,
-#     'ruta_completa': [os.path.join(tif_folder, f) for f in tif_files]
-# })
-
-# path = df_tif["ruta_completa"].iloc[5]
-# imagen = analyze.load_image(path)
-# #imagen = imread("C:/Users/Tomas/Desktop/FACULTAD/LABO 6/Resta-P8139-150Oe-50ms-1000.tif")[400:700, 475:825]
-# enhancer = ImageEnhancer(imagen=imagen)
-
-# enhancer = ImageEnhancer(imagen=imagen)
-# binary, contornos = enhancer.procesar(
-#     suavizado=20,
-#     percentil_contornos=30
-# )               
     
