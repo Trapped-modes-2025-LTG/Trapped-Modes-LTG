@@ -13,10 +13,12 @@ import pandas as pd
 import matplotlib.pyplot as plt
 import matplotlib.animation as animation
 from scipy.ndimage import uniform_filter
+
 from skimage import io
 from skimage.measure import regionprops, label
 from scipy.signal import find_peaks
 from skimage.transform import warp_polar
+
 from tqdm import tqdm
 
 class analyze:
@@ -61,24 +63,18 @@ class analyze:
             (cy, cx) coordinates of the region's centroid. Returned only if `center=True`.
 
         '''
+
         smooth = uniform_filter(image, size=smoothed)
         threshold = np.mean(smooth)
         Mask = smooth < threshold
         labels = label(Mask)  
         regions = regionprops(labels)
         regions_sorted = sorted(regions, key=lambda r: r.area, reverse=True)
-        
-
-        labels = label(Mask)
-        regions = regionprops(labels)
-        regions_sorted = sorted(regions, key=lambda r: r.area, reverse=True)
 
         r = regions_sorted[0]
 
         mask = labels == r.label  
-
         masked = image * mask
-
         
         if show_mask: 
             fig, ax = plt.subplots(1, 3, figsize=(10,4))
@@ -106,6 +102,7 @@ class analyze:
         
     @classmethod
     def center(cls, mask):
+
         '''
         Calculates the center of the region inside the floating structure.
     
@@ -119,6 +116,7 @@ class analyze:
         center : tuple of int
             (cy, cx) coordinates of the region's centroid.
         '''
+
         inv_mask = np.logical_not(mask)
 
         label_img = label(inv_mask)
@@ -136,7 +134,9 @@ class analyze:
             largest_hole = max(hole_regions, key=lambda r: r.area)
             Cy, Cx = largest_hole.centroid
             cy, cx = int(Cy), int(Cx)
+            
             center = (cy, cx)
+
         #     angle_rad = largest_hole.orientation
         #     angle_deg = (np.degrees(angle_rad) + 180) % 180  # 0–180°
         #     print(f"Centroide del agujero: ({cy:.2f}, {cx:.2f}), angle: {angle_deg:.2f}")
@@ -189,19 +189,17 @@ class analyze:
     
             mask_applied = False
     
+
             if smoothed:
                 Mask = cls.mask(displaced_image, smoothed = smoothed)
-                
                 mask = np.logical_not(Mask)
-                
+            
                 img_result = displaced_image.copy()
                 img_result[mask] = reference[mask]
                 
                 image_to_use = img_result
-                
                 center = cls.center(Mask)
-                centers.append(center)
-                
+                centers.append(center)        
                 mask_applied = True
             
             else:
@@ -233,6 +231,7 @@ class analyze:
 
     @staticmethod
     def video(maps_dir, calibration_factor=None, frame_final=300, n_extra_frames=20):
+
         '''
         Creates and saves a video from a series of height maps.
 
@@ -254,7 +253,7 @@ class analyze:
             Saves a .mp4 video in the same directory as the script.
 
         '''
-
+        
         if calibration_factor is None:
             calibration_path = os.path.join(maps_dir, 'calibration_factor.npy')
             if not os.path.isfile(calibration_path):
@@ -306,7 +305,6 @@ class analyze:
         ani.save(output_path, writer='ffmpeg', fps=30)
         print(f"Saved in: {output_path}")
 
-        
     @classmethod
     def block_split(cls,map_folder, t_limit=None, num_blocks=64, block_index=0):
         '''
@@ -331,6 +329,7 @@ class analyze:
         Pixels that were zero in the first map are set to NaN.
 
         '''
+
         file_list = sorted([
             f for f in os.listdir(map_folder)
             if f.endswith('_map.npy') and 'calibration_factor' not in f
@@ -365,6 +364,7 @@ class analyze:
     def spectrogram(cls,map_folder = None,array = None, fs=125, show = False, **kwargs):
     
         '''
+
         Computes the spectrogram of a signal or a block of signals.
 
         Parameters
@@ -414,6 +414,7 @@ class analyze:
             - Entire dataset (`map_folder`): ~1h 26min 24s
             - Single reference map (~81 s)
         
+
         '''
     
         signal_kwargs = {k: kwargs[k] for k in ['nperseg', 'noverlap', 'window'] if k in kwargs}
@@ -482,8 +483,9 @@ class analyze:
                 ValueError("map_folder or array is needed, not both")
      
     @classmethod
-    def block_amplitude(cls, map_folder, f0=None, tasa=500, mode=1, num_blocks=64, block_index=0, t_limit=[], zero = 0):
-        '''
+
+    def block_amplitude(cls, map_folder, f0=None, tasa=500, mode=1, num_blocks=64, block_index=0, t_limit=[], zero = 0):  
+      '''
         
         Computes the amplitude and phase of harmonic components for a spatial block of height maps.
 
@@ -589,10 +591,5 @@ class analyze:
             phases[:, :, k] = np.angle(harmonic_vals)
             
        # spectrum = np.stack(mean_spectrum, fft_freqs)
-
         return harmonics, amps, phases, mean_spectrum, fft_freqs
-    
-    
-    
-    
-    
+ 
