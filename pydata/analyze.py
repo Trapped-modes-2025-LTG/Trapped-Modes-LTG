@@ -13,11 +13,11 @@ import pandas as pd
 import matplotlib.pyplot as plt
 import matplotlib.animation as animation
 from scipy.ndimage import uniform_filter
-import cv2
+#import cv2
 #from skimage.filters import sobel
 from skimage import io
 from skimage.draw import polygon
-from skimage.measure import regionprops, label,find_contours
+from skimage.measure import regionprops, label#,find_contours
 from scipy.signal import find_peaks
 from skimage.transform import warp_polar
 from scipy.optimize import curve_fit
@@ -38,369 +38,86 @@ class analyze:
         ndarray - 2D grayscale image as a float32 NumPy array.
         '''
         return io.imread(path, as_gray=True).astype(np.float32)
-
-    @classmethod 
-    def side(cls,x,y,binary):
-        h, w = binary.shape
-        x = int(x)
-        y = int(y)
-        if y == 0 or y == w-1: 
-            if binary[y, x+1] == 0: 
-                return "right"
-            else:
-                return 'left'
-        elif x == 0 or x == h-1:
-            if binary[y+1,x] == 0:
-                return "up"
-            else:
-                return "down"
-            
-    @classmethod 
-    def borders(cls, side, ps, maxim):
-        x0, y0 = ps[0]
-        x1, y1 = ps[1]
-        x2, y2 = ps[2]
-        x3, y3 = ps[3]
-        
-        if side == "right":
-            xs_derecha = [
-                p[1] for i, p in enumerate(ps)
-                if i % 2 == 0 and p[0] == y0 and p[1] > x0
-            ]
-        
-            if xs_derecha:
-                x_stop_val = min(xs_derecha)
-
-                for i, p in enumerate(ps):
-                    if i % 2 == 0 and p[0] == y0 and p[1] == x_stop_val:
-                        del ps[i:i+2]  # Eliminar el punto 
-                        break
-            
-                x_stop = x_stop_val - 1
-                camino_x0 = np.linspace(x0, x_stop, int(x_stop - x0) + 1)
-                camino_y0 = np.full_like(camino_x0, y0)
-            else:
-                pass
-            #     x_stop = maxim
-            #     camino_x0 = np.linspace(x0, x_stop, int(x_stop - x0) + 1)
-            #     camino_y0 = np.full_like(camino_x0, y0)
-        
-            #     found = False
-            #     segmento_x = []
-            #     segmento_y = []
-        
-            #     if y0 == maxim - 1:
-            #         for dy in range(1, maxim):
-            #             new_y = y0 - dy
-            #             if new_y < 0:
-            #                 break
-            #             if binary[new_y, x_stop] != 0:
-            #                 segmento_x = [x_stop] * (dy + 1)
-            #                 segmento_y = list(range(y0, new_y - 1, -1))
-            #                 found = True
-            #                 break
-            #     else:
-            #         for dy in range(1, height):
-            #             new_y = y0 + dy
-            #             if new_y >= height:
-            #                 break
-            #             if binary[new_y, x_stop] != 0:
-            #                 segmento_x = [x_stop] * (dy + 1)
-            #                 segmento_y = list(range(y0, new_y + 1))
-            #                 found = True
-            #                 break
-        
-            #     if found:
-            #         camino_x0 = np.concatenate([camino_x0, segmento_x])
-            #         camino_y0 = np.concatenate([camino_y0, segmento_y])
-        
-            plt.plot(camino_x0, camino_y0, lw=2, c="lime", zorder=10)
-            pass
-        return
     
     @classmethod
-    def correct_contours(cls, contornos, binary):
-        contornos = sorted(contornos, key=lambda c: len(c), reverse=True)
-        
-        threshold = 300 # TODO: ver como calcular esto
-        
-        inner_contours = []
-        out_contours = []
-        
-        for c in contornos[:5]:
-            p0 = c[0]
-            p1 = c[-1]
-            distancia = np.linalg.norm(p0 - p1)
-        
-            if distancia <= 1:
-                inner_contours.append(c)
-            else:
-                out_contours.append(c)
-        
-        if len(inner_contours) > 1:
-            inner_contours = inner_contours[:2]  
-            if len(inner_contours[1]) <= threshold:
-                inner_contours = [inner_contours[0]]
-            else: 
-                return inner_contours
-        
-        out_contours = [c for c in out_contours if len(c) >= threshold]
-                
-        if len(out_contours) == 1:
-            cnt1 = out_contours[0].astype(np.int32)
-            
-            if not cnt1[-1][0] == cnt1[0][0] or cnt1[-1][1] == cnt1[0][1]:
-            
-                p1 = cnt1[0]
-                p2 = cnt1[-1]
-                
-                y_max = binary.shape[0] - 1 
-                
-                caminos_y = []
-                caminos_x = []
-                    
-                for y, x in [p1, p2]:
-                    y, x = int(y), int(x)
-                    
-                    if x == 0:
-                        if y > y_max / 2:
-                            camino_y = np.linspace(y, y_max, int(y_max - y))
-                        else:
-                            camino_y = np.linspace(0, y, int(y))
-                        camino_x = np.zeros_like(camino_y)
-                    
-                    elif y == 0:
-                        if x > y_max / 2:
-                            camino_x = np.linspace(x, y_max, int(y_max - x))
-                        else:
-                            camino_x = np.linspace(0, x, int(x))
-                        camino_y = np.zeros_like(camino_x)
-                
-                    elif x == y_max:
-                        if y > y_max / 2:
-                            camino_y = np.linspace(y, y_max, int(y_max - y))
-                        else:
-                            camino_y = np.linspace(0, y, int(y))
-                        camino_x = np.full_like(camino_y, y_max)
-                
-                    elif y == y_max:
-                        if x > y_max / 2:
-                            camino_x = np.linspace(x, y_max, int(y_max - x))
-                        else:
-                            camino_x = np.linspace(0, x, int(x))
-                        camino_y = np.full_like(camino_x, y_max)
-                    
-                    caminos_y.append(camino_y)
-                    caminos_x.append(camino_x)
-        
-            cnt2 = inner_contours[0]
-            
-            camino1 = np.stack([caminos_y[0], caminos_x[0]], axis=1).astype(np.int32)
-            camino2 = np.stack([caminos_y[1], caminos_x[1]], axis=1).astype(np.int32)
-                
-            cnt1 = np.concatenate([cnt1, camino1, camino2])
- 
-            return cnt1, cnt2
-        
-        elif len(out_contours) == 2:
-            
-            ps = []         # [  [yi0, xi0], [yf0, xf0]  ,  [yi1, xi1], [yf1, xf1]  ]
-            # plt.figure()
-            # plt.imshow(binary)
-
-            for c in out_contours:
-                cix = c[:, 1][0]
-                ciy = c[:, 0][0]
-                cfx = c[:, 1][-1]
-                cfy = c[:, 0][-1]
-                ps.append([int(ciy), int(cix)])
-                ps.append([int(cfy), int(cfx)])
-
-                plt.scatter(c[:, 1], c[:, 0], s = 1, c = "red")
-                plt.scatter(c[:, 1][0], c[:, 0][0], s = 100, c = "cyan")
-                plt.scatter(c[:, 1][-1], c[:, 0][-1], s = 100, c = "black")
-                
-            y0, x0 = ps[0]
-            
-            side_p0 = cls.side(x0, y0, binary)
-            
-            maxim= binary.shape[0]-1
-            
-            # ordenar segun el sentido de las agujas del reloj
-            ps = np.array(ps) 
-            p0 = ps[0]
-            resto = ps[1:]
-            angulos = np.arctan2(resto[:, 0] - p0[0], resto[:, 1] - p0[1])
-            indices_orden = np.argsort(angulos)
-            resto_ordenado = resto[indices_orden]
-            ps_o = np.vstack([p0, resto_ordenado])
-            
-            if side_p0 == "right":
-                pass
-            if side_p0 == "left":
-                pass
-            if side_p0 == "down": 
-                pass
-            if side_p0 == "down":
-                pass
-            
-            # if side_p0 == "right":
-            #     xs_derecha = [
-            #         p[1] for i, p in enumerate(ps)
-            #         if i % 2 == 0 and p[0] == y0 and p[1] > x0
-            #     ]
-            
-            #     if xs_derecha:
-            #         x_stop_val = min(xs_derecha)
-    
-            #         for i, p in enumerate(ps):
-            #             if i % 2 == 0 and p[0] == y0 and p[1] == x_stop_val:
-            #                 del ps[i:i+2]  # Eliminar el punto 
-            #                 break
-                
-            #         x_stop = x_stop_val - 1
-            #         camino_x0 = np.linspace(x0, x_stop, int(x_stop - x0) + 1)
-            #         camino_y0 = np.full_like(camino_x0, y0)
-            #     else:
-            #         x_stop = maxim
-            #         camino_x0 = np.linspace(x0, x_stop, int(x_stop - x0) + 1)
-            #         camino_y0 = np.full_like(camino_x0, y0)
-            
-            #         height = binary.shape[0]
-            #         found = False
-            #         segmento_x = []
-            #         segmento_y = []
-            
-            #         if y0 == height - 1:
-            #             for dy in range(1, height):
-            #                 new_y = y0 - dy
-            #                 if new_y < 0:
-            #                     break
-            #                 if binary[new_y, x_stop] != 0:
-            #                     segmento_x = [x_stop] * (dy + 1)
-            #                     segmento_y = list(range(y0, new_y - 1, -1))
-            #                     found = True
-            #                     break
-            #         else:
-            #             for dy in range(1, height):
-            #                 new_y = y0 + dy
-            #                 if new_y >= height:
-            #                     break
-            #                 if binary[new_y, x_stop] != 0:
-            #                     segmento_x = [x_stop] * (dy + 1)
-            #                     segmento_y = list(range(y0, new_y + 1))
-            #                     found = True
-            #                     break
-            
-            #         if found:
-            #             camino_x0 = np.concatenate([camino_x0, segmento_x])
-            #             camino_y0 = np.concatenate([camino_y0, segmento_y])
-            
-            #     plt.plot(camino_x0, camino_y0, lw=2, c="lime", zorder=10)
-            
-            cont_unido = None
-            cnt2 = inner_contours[0]
-            print()
-            return cont_unido, cnt2
-        
-    @classmethod
-    def mask(cls,image,smoothed, percentage, sigma_background=100, show_mask = False):
+    def mask(cls,image, smoothed = 14, show_mask = False, center = False):
         '''
-        lipsum.
-    
-        Parameters
-        ----------
-        image: ndarray - 2D grayscale image.
-        smoothed: float - .
-        percentage: float - .
-        sigma_background: int - 
-        alpha: int - .
-        show_mask: False : Bool - Decide if the proccess used is ploted or not.
         
-        Returns
-        -------
-        mask : .
         '''
-
-        def _find_large_contours(binary):
-            contours = find_contours(binary, level=0.5)
-            if percentage > 0:
-                def area_contorno(contour):
-                    x = contour[:, 1]
-                    y = contour[:, 0]
-                    return 0.5 * np.abs(np.dot(x, np.roll(y, 1)) - np.dot(y, np.roll(x, 1)))
-                areas = np.array([area_contorno(c) for c in contours])
-                umbral = np.percentile(areas, percentage)
-                return [c for c, a in zip(contours, areas) if a >= umbral]
-            return contours
         
-        def _mostrar_resultados(binary, contornos, imagen_contorno):
-            plt.figure()
+        smooth = uniform_filter(image, size=smoothed)
+        threshold = np.mean(smooth)
+        Mask = smooth < threshold
+        labels = label(Mask)  
+        regions = regionprops(labels)
+        regions_sorted = sorted(regions, key=lambda r: r.area, reverse=True)
+        
 
-            plt.subplot(1,3, 1)
-            plt.imshow(image, cmap='gray')
-            for c in contornos:
-                plt.scatter(c[:, 1], c[:, 0], s=1, c='cyan')
-            plt.title("Original + edges")
-            plt.axis('off')
+        labels = label(Mask)
+        regions = regionprops(labels)
+        regions_sorted = sorted(regions, key=lambda r: r.area, reverse=True)
 
-            plt.subplot(1,3, 2)
-            plt.imshow(smooth, cmap='gray')
-            plt.title("Smoothed")
-            plt.axis('off')
+        r = regions_sorted[0]
 
-            plt.subplot(1,3, 3)
-            plt.imshow(imagen_contorno, cmap='gray')
-            for c in contornos:
-                plt.scatter(c[:, 1], c[:, 0], s=1, c='cyan')
-            plt.title("Binarized")
-            plt.axis('off')
+        mask = labels == r.label  
 
-            print(f"Cantidad de contornos detectados: {len(contornos)}")
+        masked = image * mask
+
+        
+        if show_mask: 
+            fig, ax = plt.subplots(1, 3, figsize=(10,4))
+                
+            ax[0].imshow(image, cmap="gray")
+            ax[0].set_title("Original image")
+
+            ax[1].imshow(mask, cmap="gray")
+            ax[1].set_title("Mask")
+
+            ax[2].imshow(masked, cmap="gray")
+            ax[2].set_title("Masked image")
+
+            for a in ax:
+                a.axis("off")  # opcional, quita los ejes
 
             plt.tight_layout()
             plt.show()
-        
-        smooth = uniform_filter(image, size=smoothed)
-            
-        threshold = np.mean(smooth)
-        binary = (smooth > threshold).astype(np.uint8) * 255
-        contornos = _find_large_contours(binary)
-        imagen_contorno = binary
-        if show_mask:
-            _mostrar_resultados(binary, contornos, imagen_contorno)
-        cnts = cls.correct_contours(contornos, binary)
-    
-        mask_shape = image.shape[:2]  
-        outer_mask = np.zeros(mask_shape, dtype=np.uint16)
-        inner_mask = np.zeros(mask_shape, dtype=np.uint16)
-    
-        cnt_outer = np.asarray(cnts[0], dtype=np.int32)
-        cnt_inner = np.asarray(cnts[1], dtype=np.int32)
-        
-        if cnt_outer.ndim == 2:
-            cnt_outer = cnt_outer[:, np.newaxis, :]
-        if cnt_inner.ndim == 2:
-            cnt_inner = cnt_inner[:, np.newaxis, :]
-        
-        cv2.drawContours(outer_mask, [cnt_outer], -1, color=1, thickness=cv2.FILLED)
-        cv2.drawContours(inner_mask, [cnt_inner], -1, color=1, thickness=cv2.FILLED)
-    
-        between_mask = outer_mask - inner_mask
-        between_mask[between_mask < 0] = 0
-        mask = (1-between_mask).astype(float)
-        
-        contornos = [cnts[0], cnts[1]]
-        
-        if show_mask:
-            _mostrar_resultados(binary, contornos, imagen_contorno)
-        
-        return mask, contornos
 
+        if center: 
+            return mask, cls.center(mask)
+        else:
+            return mask
+        
+        
+    @classmethod
+    def center(cls, mask):
+        inv_mask = np.logical_not(mask)
+
+        label_img = label(inv_mask)
+        props = regionprops(label_img)
+
+        n_rows, n_cols = mask.shape
+        hole_regions = []
+
+        for region in props:
+            min_row, min_col, max_row, max_col = region.bbox
+            if min_row > 0 and min_col > 0 and max_row < n_rows and max_col < n_cols: 
+                hole_regions.append(region)                                           
+                                                                         
+        if hole_regions:
+            largest_hole = max(hole_regions, key=lambda r: r.area)
+            Cy, Cx = largest_hole.centroid
+            cy, cx = int(Cy), int(Cx)
+            center = (cx, cy)
+        #     angle_rad = largest_hole.orientation
+        #     angle_deg = (np.degrees(angle_rad) + 180) % 180  # 0–180°
+        #     print(f"Centroide del agujero: ({cy:.2f}, {cx:.2f}), angle: {angle_deg:.2f}")
+        # else:
+        #     print("No se encontró agujero cerrado dentro del objeto.")
+        return center
+    
     @classmethod
     def folder(cls, reference_path, displaced_dir, layers, square_size,
-           smoothed=None, percentage=None, sigma_background=100,
-           show_mask=False):
+           smoothed=None,show_mask=False):
         '''
         Processes a folder of ".tif" images to compute height maps using the FCD method.
     
@@ -416,10 +133,6 @@ class analyze:
             Size of square pattern at rest.
         smoothed : int, optional
             Size of the smoothing filter applied before masking.
-        percentage : int, optional
-            Percentage threshold for contour masking.
-        sigma_background : int, default=100
-            Sigma for the background subtraction filter.
         show_mask : bool, default=False
             If True, displays the generated mask and contours.
     
@@ -447,21 +160,27 @@ class analyze:
     
             mask_applied = False
     
-            if smoothed and percentage:
-                mask, cnt = cls.mask(
-                    displaced_image,
-                    smoothed,
-                    percentage,
-                    sigma_background=sigma_background,
-                    show_mask=show_mask
-                )
-                displaced = mask.T * displaced_image
-                displaced_w = np.where(mask.T, displaced, reference)
-                image_to_use = displaced_w
-                mask_applied = True
+            # if smoothed and percentage:
+            #     mask, cnt = cls.mask(
+            #         displaced_image,
+            #         smoothed,
+            #         percentage,
+            #         sigma_background=sigma_background,
+            #         show_mask=show_mask
+            #     )
+            if smoothed:
+                mask = cls.mask(displaced_image, smoothed = smoothed)
                 
-                center = cls.confined_peaks(cnt = cnt[1], image_shape = image_to_use.shape)   # TODO: chequear si este contorno es el que quiero
+                img_result = displaced_image.copy()
+                img_result[mask] = reference[mask]
+                
+                image_to_use = img_result
+                
+                center = cls.center(mask)
                 centers.append(center)
+                
+                mask_applied = True
+            
             else:
                 image_to_use = displaced_image
     
@@ -477,10 +196,8 @@ class analyze:
     
             base_name = fname.replace('.tif', '')
     
-            
             output_path = os.path.join(output_dir, f"{base_name}_map.npy")
             np.save(output_path, height_map)
-    
     
             if not calibration_saved:
                 calibration_path = os.path.join(output_dir, 'calibration_factor.npy')
@@ -491,7 +208,6 @@ class analyze:
         centers_path = os.path.join(output_dir, "centers.npy")
         np.save(centers_path, centers)
 
-                    
     @staticmethod
     def video(maps_dir, calibration_factor=None, frame_final=300, n_extra_frames=20):
 
@@ -1041,3 +757,366 @@ class analyze:
                 plt.show()
 
         return np.array(senal)
+    
+    
+    
+    
+    
+    
+    # @classmethod 
+    # def side(cls,x,y,binary):
+    #     h, w = binary.shape
+    #     x = int(x)
+    #     y = int(y)
+    #     if y == 0 or y == w-1: 
+    #         if binary[y, x+1] == 0: 
+    #             return "right"
+    #         else:
+    #             return 'left'
+    #     elif x == 0 or x == h-1:
+    #         if binary[y+1,x] == 0:
+    #             return "up"
+    #         else:
+    #             return "down"
+            
+    # @classmethod 
+    # def borders(cls, side, ps, maxim):
+    #     x0, y0 = ps[0]
+    #     x1, y1 = ps[1]
+    #     x2, y2 = ps[2]
+    #     x3, y3 = ps[3]
+        
+    #     if side == "right":
+    #         xs_derecha = [
+    #             p[1] for i, p in enumerate(ps)
+    #             if i % 2 == 0 and p[0] == y0 and p[1] > x0
+    #         ]
+        
+    #         if xs_derecha:
+    #             x_stop_val = min(xs_derecha)
+
+    #             for i, p in enumerate(ps):
+    #                 if i % 2 == 0 and p[0] == y0 and p[1] == x_stop_val:
+    #                     del ps[i:i+2]  # Eliminar el punto 
+    #                     break
+            
+    #             x_stop = x_stop_val - 1
+    #             camino_x0 = np.linspace(x0, x_stop, int(x_stop - x0) + 1)
+    #             camino_y0 = np.full_like(camino_x0, y0)
+    #         else:
+    #             pass
+    #         #     x_stop = maxim
+    #         #     camino_x0 = np.linspace(x0, x_stop, int(x_stop - x0) + 1)
+    #         #     camino_y0 = np.full_like(camino_x0, y0)
+        
+    #         #     found = False
+    #         #     segmento_x = []
+    #         #     segmento_y = []
+        
+    #         #     if y0 == maxim - 1:
+    #         #         for dy in range(1, maxim):
+    #         #             new_y = y0 - dy
+    #         #             if new_y < 0:
+    #         #                 break
+    #         #             if binary[new_y, x_stop] != 0:
+    #         #                 segmento_x = [x_stop] * (dy + 1)
+    #         #                 segmento_y = list(range(y0, new_y - 1, -1))
+    #         #                 found = True
+    #         #                 break
+    #         #     else:
+    #         #         for dy in range(1, height):
+    #         #             new_y = y0 + dy
+    #         #             if new_y >= height:
+    #         #                 break
+    #         #             if binary[new_y, x_stop] != 0:
+    #         #                 segmento_x = [x_stop] * (dy + 1)
+    #         #                 segmento_y = list(range(y0, new_y + 1))
+    #         #                 found = True
+    #         #                 break
+        
+    #         #     if found:
+    #         #         camino_x0 = np.concatenate([camino_x0, segmento_x])
+    #         #         camino_y0 = np.concatenate([camino_y0, segmento_y])
+        
+    #         plt.plot(camino_x0, camino_y0, lw=2, c="lime", zorder=10)
+    #         pass
+    #     return
+    
+    # @classmethod
+    # def correct_contours(cls, contornos, binary):
+    #     contornos = sorted(contornos, key=lambda c: len(c), reverse=True)
+        
+    #     threshold = 300 # TODO: ver como calcular esto
+        
+    #     inner_contours = []
+    #     out_contours = []
+        
+    #     for c in contornos[:5]:
+    #         p0 = c[0]
+    #         p1 = c[-1]
+    #         distancia = np.linalg.norm(p0 - p1)
+        
+    #         if distancia <= 1:
+    #             inner_contours.append(c)
+    #         else:
+    #             out_contours.append(c)
+        
+    #     if len(inner_contours) > 1:
+    #         inner_contours = inner_contours[:2]  
+    #         if len(inner_contours[1]) <= threshold:
+    #             inner_contours = [inner_contours[0]]
+    #         else: 
+    #             return inner_contours
+        
+    #     out_contours = [c for c in out_contours if len(c) >= threshold]
+                
+    #     if len(out_contours) == 1:
+    #         cnt1 = out_contours[0].astype(np.int32)
+            
+    #         if not cnt1[-1][0] == cnt1[0][0] or cnt1[-1][1] == cnt1[0][1]:
+            
+    #             p1 = cnt1[0]
+    #             p2 = cnt1[-1]
+                
+    #             y_max = binary.shape[0] - 1 
+                
+    #             caminos_y = []
+    #             caminos_x = []
+                    
+    #             for y, x in [p1, p2]:
+    #                 y, x = int(y), int(x)
+                    
+    #                 if x == 0:
+    #                     if y > y_max / 2:
+    #                         camino_y = np.linspace(y, y_max, int(y_max - y))
+    #                     else:
+    #                         camino_y = np.linspace(0, y, int(y))
+    #                     camino_x = np.zeros_like(camino_y)
+                    
+    #                 elif y == 0:
+    #                     if x > y_max / 2:
+    #                         camino_x = np.linspace(x, y_max, int(y_max - x))
+    #                     else:
+    #                         camino_x = np.linspace(0, x, int(x))
+    #                     camino_y = np.zeros_like(camino_x)
+                
+    #                 elif x == y_max:
+    #                     if y > y_max / 2:
+    #                         camino_y = np.linspace(y, y_max, int(y_max - y))
+    #                     else:
+    #                         camino_y = np.linspace(0, y, int(y))
+    #                     camino_x = np.full_like(camino_y, y_max)
+                
+    #                 elif y == y_max:
+    #                     if x > y_max / 2:
+    #                         camino_x = np.linspace(x, y_max, int(y_max - x))
+    #                     else:
+    #                         camino_x = np.linspace(0, x, int(x))
+    #                     camino_y = np.full_like(camino_x, y_max)
+                    
+    #                 caminos_y.append(camino_y)
+    #                 caminos_x.append(camino_x)
+        
+    #         cnt2 = inner_contours[0]
+            
+    #         camino1 = np.stack([caminos_y[0], caminos_x[0]], axis=1).astype(np.int32)
+    #         camino2 = np.stack([caminos_y[1], caminos_x[1]], axis=1).astype(np.int32)
+                
+    #         cnt1 = np.concatenate([cnt1, camino1, camino2])
+ 
+    #         return cnt1, cnt2
+        
+    #     elif len(out_contours) == 2:
+            
+    #         ps = []         # [  [yi0, xi0], [yf0, xf0]  ,  [yi1, xi1], [yf1, xf1]  ]
+    #         # plt.figure()
+    #         # plt.imshow(binary)
+
+    #         for c in out_contours:
+    #             cix = c[:, 1][0]
+    #             ciy = c[:, 0][0]
+    #             cfx = c[:, 1][-1]
+    #             cfy = c[:, 0][-1]
+    #             ps.append([int(ciy), int(cix)])
+    #             ps.append([int(cfy), int(cfx)])
+
+    #             plt.scatter(c[:, 1], c[:, 0], s = 1, c = "red")
+    #             plt.scatter(c[:, 1][0], c[:, 0][0], s = 100, c = "cyan")
+    #             plt.scatter(c[:, 1][-1], c[:, 0][-1], s = 100, c = "black")
+                
+    #         y0, x0 = ps[0]
+            
+    #         side_p0 = cls.side(x0, y0, binary)
+            
+    #         maxim= binary.shape[0]-1
+            
+    #         # ordenar segun el sentido de las agujas del reloj
+    #         ps = np.array(ps) 
+    #         p0 = ps[0]
+    #         resto = ps[1:]
+    #         angulos = np.arctan2(resto[:, 0] - p0[0], resto[:, 1] - p0[1])
+    #         indices_orden = np.argsort(angulos)
+    #         resto_ordenado = resto[indices_orden]
+    #         ps_o = np.vstack([p0, resto_ordenado])
+            
+    #         if side_p0 == "right":
+    #             pass
+    #         if side_p0 == "left":
+    #             pass
+    #         if side_p0 == "down": 
+    #             pass
+    #         if side_p0 == "down":
+    #             pass
+            
+    #         # if side_p0 == "right":
+    #         #     xs_derecha = [
+    #         #         p[1] for i, p in enumerate(ps)
+    #         #         if i % 2 == 0 and p[0] == y0 and p[1] > x0
+    #         #     ]
+            
+    #         #     if xs_derecha:
+    #         #         x_stop_val = min(xs_derecha)
+    
+    #         #         for i, p in enumerate(ps):
+    #         #             if i % 2 == 0 and p[0] == y0 and p[1] == x_stop_val:
+    #         #                 del ps[i:i+2]  # Eliminar el punto 
+    #         #                 break
+                
+    #         #         x_stop = x_stop_val - 1
+    #         #         camino_x0 = np.linspace(x0, x_stop, int(x_stop - x0) + 1)
+    #         #         camino_y0 = np.full_like(camino_x0, y0)
+    #         #     else:
+    #         #         x_stop = maxim
+    #         #         camino_x0 = np.linspace(x0, x_stop, int(x_stop - x0) + 1)
+    #         #         camino_y0 = np.full_like(camino_x0, y0)
+            
+    #         #         height = binary.shape[0]
+    #         #         found = False
+    #         #         segmento_x = []
+    #         #         segmento_y = []
+            
+    #         #         if y0 == height - 1:
+    #         #             for dy in range(1, height):
+    #         #                 new_y = y0 - dy
+    #         #                 if new_y < 0:
+    #         #                     break
+    #         #                 if binary[new_y, x_stop] != 0:
+    #         #                     segmento_x = [x_stop] * (dy + 1)
+    #         #                     segmento_y = list(range(y0, new_y - 1, -1))
+    #         #                     found = True
+    #         #                     break
+    #         #         else:
+    #         #             for dy in range(1, height):
+    #         #                 new_y = y0 + dy
+    #         #                 if new_y >= height:
+    #         #                     break
+    #         #                 if binary[new_y, x_stop] != 0:
+    #         #                     segmento_x = [x_stop] * (dy + 1)
+    #         #                     segmento_y = list(range(y0, new_y + 1))
+    #         #                     found = True
+    #         #                     break
+            
+    #         #         if found:
+    #         #             camino_x0 = np.concatenate([camino_x0, segmento_x])
+    #         #             camino_y0 = np.concatenate([camino_y0, segmento_y])
+            
+    #         #     plt.plot(camino_x0, camino_y0, lw=2, c="lime", zorder=10)
+            
+    #         cont_unido = None
+    #         cnt2 = inner_contours[0]
+    #         print()
+    #         return cont_unido, cnt2
+        
+    # @classmethod
+    # def mask(cls,image,smoothed, percentage, sigma_background=100, show_mask = False):
+    #     '''
+    #     lipsum.
+    
+    #     Parameters
+    #     ----------
+    #     image: ndarray - 2D grayscale image.
+    #     smoothed: float - .
+    #     percentage: float - .
+    #     sigma_background: int - 
+    #     alpha: int - .
+    #     show_mask: False : Bool - Decide if the proccess used is ploted or not.
+        
+    #     Returns
+    #     -------
+    #     mask : .
+    #     '''
+
+    #     def _find_large_contours(binary):
+    #         contours = find_contours(binary, level=0.5)
+    #         if percentage > 0:
+    #             def area_contorno(contour):
+    #                 x = contour[:, 1]
+    #                 y = contour[:, 0]
+    #                 return 0.5 * np.abs(np.dot(x, np.roll(y, 1)) - np.dot(y, np.roll(x, 1)))
+    #             areas = np.array([area_contorno(c) for c in contours])
+    #             umbral = np.percentile(areas, percentage)
+    #             return [c for c, a in zip(contours, areas) if a >= umbral]
+    #         return contours
+        
+    #     def _mostrar_resultados(binary, contornos, imagen_contorno):
+    #         plt.figure()
+
+    #         plt.subplot(1,3, 1)
+    #         plt.imshow(image, cmap='gray')
+    #         for c in contornos:
+    #             plt.scatter(c[:, 1], c[:, 0], s=1, c='cyan')
+    #         plt.title("Original + edges")
+    #         plt.axis('off')
+
+    #         plt.subplot(1,3, 2)
+    #         plt.imshow(smooth, cmap='gray')
+    #         plt.title("Smoothed")
+    #         plt.axis('off')
+
+    #         plt.subplot(1,3, 3)
+    #         plt.imshow(imagen_contorno, cmap='gray')
+    #         for c in contornos:
+    #             plt.scatter(c[:, 1], c[:, 0], s=1, c='cyan')
+    #         plt.title("Binarized")
+    #         plt.axis('off')
+
+    #         print(f"Cantidad de contornos detectados: {len(contornos)}")
+
+    #         plt.tight_layout()
+    #         plt.show()
+        
+    #     smooth = uniform_filter(image, size=smoothed)
+            
+    #     threshold = np.mean(smooth)
+    #     binary = (smooth > threshold).astype(np.uint8) * 255
+    #     contornos = _find_large_contours(binary)
+    #     imagen_contorno = binary
+    #     if show_mask:
+    #         _mostrar_resultados(binary, contornos, imagen_contorno)
+    #     cnts = cls.correct_contours(contornos, binary)
+    
+    #     mask_shape = image.shape[:2]  
+    #     outer_mask = np.zeros(mask_shape, dtype=np.uint16)
+    #     inner_mask = np.zeros(mask_shape, dtype=np.uint16)
+    
+    #     cnt_outer = np.asarray(cnts[0], dtype=np.int32)
+    #     cnt_inner = np.asarray(cnts[1], dtype=np.int32)
+        
+    #     if cnt_outer.ndim == 2:
+    #         cnt_outer = cnt_outer[:, np.newaxis, :]
+    #     if cnt_inner.ndim == 2:
+    #         cnt_inner = cnt_inner[:, np.newaxis, :]
+        
+    #     cv2.drawContours(outer_mask, [cnt_outer], -1, color=1, thickness=cv2.FILLED)
+    #     cv2.drawContours(inner_mask, [cnt_inner], -1, color=1, thickness=cv2.FILLED)
+    
+    #     between_mask = outer_mask - inner_mask
+    #     between_mask[between_mask < 0] = 0
+    #     mask = (1-between_mask).astype(float)
+        
+    #     contornos = [cnts[0], cnts[1]]
+        
+    #     if show_mask:
+    #         _mostrar_resultados(binary, contornos, imagen_contorno)
+        
+        # return mask, contornos
