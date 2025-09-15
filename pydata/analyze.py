@@ -13,12 +13,10 @@ import pandas as pd
 import matplotlib.pyplot as plt
 import matplotlib.animation as animation
 from scipy.ndimage import uniform_filter
-
 from skimage import io
 from skimage.measure import regionprops, label
 from scipy.signal import find_peaks
 from skimage.transform import warp_polar
-
 from tqdm import tqdm
 
 class analyze:
@@ -125,7 +123,7 @@ class analyze:
         n_rows, n_cols = mask.shape
         hole_regions = []
 
-        for region in props:
+        for region in props:        # TODO: pasar bbox a funcion aparte _
             min_row, min_col, max_row, max_col = region.bbox
             if min_row > 0 and min_col > 0 and max_row < n_rows and max_col < n_cols: 
                 hole_regions.append(region)                                           
@@ -136,12 +134,7 @@ class analyze:
             cy, cx = int(Cy), int(Cx)
             
             center = (cy, cx)
-
-        #     angle_rad = largest_hole.orientation
-        #     angle_deg = (np.degrees(angle_rad) + 180) % 180  # 0–180°
-        #     print(f"Centroide del agujero: ({cy:.2f}, {cx:.2f}), angle: {angle_deg:.2f}")
-        # else:
-        #     print("No se encontró agujero cerrado dentro del objeto.")
+            
         return center
     
     @classmethod
@@ -178,8 +171,39 @@ class analyze:
         calibration_saved = False
         file_list = sorted(os.listdir(displaced_dir))
     
-        centers = []    
-    
+        centers = [] 
+        
+        if show_mask:
+            displaced_path = os.path.join(displaced_dir, file_list[10])
+            displaced_image = cls.load_image(displaced_path)
+        
+            while True:
+                Mask = cls.mask(displaced_image, smoothed=smoothed)
+                mask = np.logical_not(Mask)
+        
+                # apply mask
+                img_result = displaced_image.copy()
+                img_result[mask] = reference[mask]
+        
+                plt.figure()
+                plt.imshow(displaced_image*Mask, cmap="gray")
+                plt.title(f"Smoothed = {smoothed}")
+                plt.draw()
+                plt.pause(10)
+                plt.close("all")
+        
+                message = input("Continue with this mask? [Y,n]: ")
+        
+                if message == "Y":
+                    plt.close("all")
+                    break
+                elif message == "n":
+                    try:
+                        new_val = input("Enter new smoothed value (int): ")
+                        smoothed = int(new_val)
+                    except ValueError:
+                        print("Invalid input, keeping previous smoothed.")
+
         for fname in tqdm(file_list):
             if not (fname.endswith('.tif') and 'reference' not in fname):
                 continue
@@ -189,7 +213,6 @@ class analyze:
     
             mask_applied = False
     
-
             if smoothed:
                 Mask = cls.mask(displaced_image, smoothed = smoothed)
                 mask = np.logical_not(Mask)
@@ -485,8 +508,8 @@ class analyze:
     @classmethod
 
     def block_amplitude(cls, map_folder, f0=None, tasa=500, mode=1, num_blocks=64, block_index=0, t_limit=[], zero = 0):  
-      '''
         
+        '''
         Computes the amplitude and phase of harmonic components for a spatial block of height maps.
 
         Parameters
@@ -592,4 +615,166 @@ class analyze:
             
        # spectrum = np.stack(mean_spectrum, fft_freqs)
         return harmonics, amps, phases, mean_spectrum, fft_freqs
- 
+        
+    @classmethod
+    def polar(cls, img, center=None, ell=[1, 1], show=False, **kwargs):
+        """
+        Convert image to elliptical-polar coordinates.
+        Uses the *new* center after rotating with resize=True.
+    
+        Parameters
+        ----------
+        img : array
+            Input grayscale image (H, W).
+        center : tuple (x, y) or None
+            Ellipse center in pixel coords. If None, estimated via fitEllipse.
+        ell : [a, b]
+            Scale factors for the x and y semi-axes.
+        show : bool
+            If True, show diagnostic plots.
+        """
+        import cv2
+        from skimage.draw import disk
+        
+        # mask = (img == 0).astype(int)
+        mask = cls.mask(img)  
+        contour = cls._set_contour(mask, **kwargs)
+        contour = np.array(contour, dtype=np.float32)
+        contour_cv = contour[:, ::-1]  # (y,x) -> (x,y) 
+    
+        if center is None:
+            center_xy, _, angle = cv2.fitEllipse(contour_cv)
+        else:
+            _, _, angle = cv2.fitEllipse(contour_cv)
+            center_xy = tuple(center)
+    
+        cx, cy = float(center_xy[0]), float(center_xy[1])
+    
+        img_r = rotate(img,
+                       angle=angle,
+                       center=(cx, cy),     
+                       resize=False,
+                       order=1)
+    
+        # # --- find the *new* center after rotation+resize by rotating a tiny marker
+        # H, W = img.shape[:2]
+        # marker = np.zeros((H, W), dtype=float)
+        # # draw a small disk at (row=cy, col=cx)
+        # rr, cc = disk((cy, cx), radius=2, shape=marker.shape)
+        # marker[rr, cc] = 1.0
+        
+        # marker_r = rotate(marker,
+        #                   angle=angle,
+        #                   center=(cx, cy),
+        #                   resize=True,
+        #                   )
+        
+        # nz = np.argwhere(marker_r > 0.5)  # rows, cols of the rotated marker
+        # if nz.size == 0:
+        #     raise ValueError("Couln´t find rotated center")
+        # else:
+        #     new_cy, new_cx = nz.mean(axis=0)  # centroid in (row, col)
+        #     new_cx = float(new_cx)
+        #     new_cy = float(new_cy)
+    
+        if isinstance(ell, list) and len(ell) == 2:
+            a, b = ell
+        else:
+            raise TypeError("ell must be a list with len = 2")
+    
+        # ep_img = cls._elliptic_warp(img_r,
+        #                             center=(int(new_cx), int(new_cy)),
+        #                             a=a, b=b)
+        
+        ep_img = cls._elliptic_warp(img_r,
+                                    center=(int(cx), int(cy)),
+                                    a=a, b=b)
+        
+        if show:
+            fig, ax = plt.subplots(1, 3, figsize=(12, 4))
+            ax[0].imshow(img, cmap="gray")
+            ax[0].axis("off")
+            ax[0].scatter(cx, cy, s=30, c="r")
+            ax[0].set_title("Original")
+    
+            ax[1].imshow(img_r, cmap="gray")
+            ax[1].axis("off")
+            ax[1].scatter(cx, cy, s=30, c="r")
+            ax[1].set_title("Rotated (with new center)")
+    
+            ax[2].imshow(ep_img, cmap="gray")
+            ax[2].set_title("Rotated → Elliptical coordinates")
+            ax[2].set_ylabel(r"$\theta$ (°)")
+            ax[2].set_xlabel("r (u.a.)")
+    
+        return ep_img
+    
+    @classmethod
+    def _elliptic_warp(cls,img, center, a, b, output_shape = [400,800]):
+        """
+        Elliptic-polar warp using skimage.transform.warp.
+        Ellipses (x/a)^2 + (y/b)^2 = const become horizontal lines.
+        
+        Parameters
+        ----------
+        img : ndarray
+            Input image.
+        center : (cy, cx)
+            Center of concentric ellipses (in pixels).
+        a, b : floats
+            Semi-axes scaling factors for x and y.
+        output_shape : (H, W)
+            Shape of the warped image (rows=r, cols=theta).
+        """
+        
+        H, W = img.shape[:2]
+        cy, cx = center
+        
+        out_r, out_theta = output_shape
+        
+    
+        rx = min(cx, W - 1 - cx) /a
+        ry = min(cy, H - 1 - cy) /b
+        r_max = max(0.0, min(rx, ry))
+        
+        def inverse_map(coords):
+            """coords: (rr, cc) in output image → (y, x) in input"""
+            rr, cc = coords.T
+            # normalize to [0, r_max] and [-pi, pi]
+            r = rr / (out_r - 1) * r_max
+            theta = (cc / out_theta) * 2*np.pi - np.pi
+
+            x = cx + (a * r * np.cos(theta))
+            y = cy + (b * r * np.sin(theta))
+            return np.column_stack((y, x))  # skimage expects (row, col) = (y, x)
+
+        warped = warp(img, inverse_map, output_shape=output_shape,
+                      order=1, mode='constant', cval=0)
+        return warped
+    
+    @classmethod
+    def _set_contour(cls, mask, show = False):
+        '''
+        description
+        '''
+        inv_mask = np.logical_not(mask)
+        label_img = label(inv_mask)
+        props = regionprops(label_img)
+        n_rows, n_cols = mask.shape
+        hole_regions = []
+        for region in props:
+            min_row, min_col, max_row, max_col = region.bbox
+            if min_row > 0 and min_col > 0 and max_row < n_rows and max_col < n_cols:
+                hole_regions.append(region)
+        if not hole_regions:
+            return None
+        largest_hole = max(hole_regions, key=lambda r: r.area)
+        hole_mask = (label_img == largest_hole.label)
+        contours = find_contours(hole_mask, level=0.5)
+        if contours and show:
+            plt.imshow(mask, cmap='gray')
+            plt.plot(contours[0][:, 1], contours[0][:, 0], linewidth=2, color='red')
+            plt.axis('off')
+            plt.show()
+        return contours[0] if contours else None
+
