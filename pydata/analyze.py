@@ -214,14 +214,10 @@ class analyze:
             mask_applied = False
     
             if smoothed:
-                Mask = cls.mask(displaced_image, smoothed = smoothed)
-                mask = np.logical_not(Mask)
-            
-                img_result = displaced_image.copy()
-                img_result[mask] = reference[mask]
                 
-                image_to_use = img_result
-                center = cls.center(Mask)
+                mask = cls.mask(displaced_image, smoothed = smoothed)
+                image_to_use = np.where(mask==1, reference, displaced_image)
+                center = cls.center(mask)
                 centers.append(center)        
                 mask_applied = True
             
@@ -236,7 +232,7 @@ class analyze:
             )
             
             if mask_applied:
-                height_map *= mask
+                height_map *= ~mask
     
             base_name = fname.replace('.tif', '')
     
