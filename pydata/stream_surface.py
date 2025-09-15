@@ -67,9 +67,8 @@ def freq_mode(r,c_index,H,sigma = 0.0728 ,rho = 1002,eq = "gravedad", g = 9.81):
         raise ValueError("eq must me gravedad or capilar")
     
 if __name__ == "__main__":
-    '''
-    First for a psi that doesn´t evolve in time
-    '''
+    # First for a psi that doesn´t evolve in time
+
     solver = PsiSolver(a=100, c_index=0)
     r = np.linspace(0.01, 10, 100)
     y = np.linspace(-1, 5, 100)
@@ -84,9 +83,7 @@ if __name__ == "__main__":
     cs = plt.contour(R, Y, Z, levels = [20, 16, 12, 8, 4][::-1])
     plt.grid(linestyle = '--', alpha = 0.5)
     
-    '''
-    Now for a psi that evolves in time with trapped mode's frequency w 
-    '''
+    # Now for a psi that evolves in time with trapped mode's frequency w 
     
     g = 9.81
     w = np.sqrt(g*solver.selected_c)

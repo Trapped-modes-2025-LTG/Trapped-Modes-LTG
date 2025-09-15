@@ -13,12 +13,10 @@ import pandas as pd
 import matplotlib.pyplot as plt
 import matplotlib.animation as animation
 from scipy.ndimage import uniform_filter
-
 from skimage import io
-from skimage.measure import regionprops, label, find_contours
+from skimage.measure import regionprops, label
 from scipy.signal import find_peaks
-from skimage.transform import warp, rotate
-
+from skimage.transform import warp_polar
 from tqdm import tqdm
 
 class analyze:
@@ -136,7 +134,7 @@ class analyze:
             cy, cx = int(Cy), int(Cx)
             
             center = (cy, cx)
-
+            
         return center
     
     @classmethod
@@ -510,8 +508,8 @@ class analyze:
     @classmethod
 
     def block_amplitude(cls, map_folder, f0=None, tasa=500, mode=1, num_blocks=64, block_index=0, t_limit=[], zero = 0):  
-        '''
         
+        '''
         Computes the amplitude and phase of harmonic components for a spatial block of height maps.
 
         Parameters
@@ -617,7 +615,7 @@ class analyze:
             
        # spectrum = np.stack(mean_spectrum, fft_freqs)
         return harmonics, amps, phases, mean_spectrum, fft_freqs
-    
+        
     @classmethod
     def polar(cls, img, center=None, ell=[1, 1], show=False, **kwargs):
         """
@@ -779,3 +777,4 @@ class analyze:
             plt.axis('off')
             plt.show()
         return contours[0] if contours else None
+
