@@ -492,9 +492,9 @@ class analyze:
      
     @classmethod
 
-    def block_amplitude(cls, map_folder, f0=None, tasa=500, mode=1, num_blocks=64, block_index=0, t_limit=[], zero = 0):  
-        
-        '''
+    def block_amplitude(cls, map_folder, f0=None, tasa=500, mode=1, num_blocks=64, block_index=0, zero = 0):  
+        '''        
+
         Computes the amplitude and phase of harmonic components for a spatial block of height maps.
 
         Parameters
@@ -511,8 +511,6 @@ class analyze:
             Total number of blocks in which the map is divided.
         block_index : int, optional, default=0
             Index of the block to process.
-        t_limit : list of two ints, optional, default=[]
-            Time slice to select maps from the folder: [start_index, end_index].
 
         zero : float, optional, default=0
             Value to subtract from the maps before analysis, for example Mode 0.
@@ -533,8 +531,6 @@ class analyze:
         '''
 
         file_list = sorted([f for f in os.listdir(map_folder) if f.endswith('_map.npy') and 'calibration_factor' not in f])
-        file_list = file_list[t_limit[0]:t_limit[1]]
-
 
         initial_map = np.load(os.path.join(map_folder, file_list[0]))
         H, W = initial_map.shape
@@ -619,7 +615,6 @@ class analyze:
             If True, show diagnostic plots.
         """
         import cv2
-        from skimage.draw import disk
         
         # mask = (img == 0).astype(int)
         mask = cls.mask(img)  
