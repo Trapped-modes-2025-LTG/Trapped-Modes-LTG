@@ -590,7 +590,6 @@ class analyze:
                 ValueError("map_folder or array is needed, not both")
      
     @classmethod
-
     def block_amplitude(cls, map_folder, f0=None, tasa=500, mode=1, num_blocks=64, block_index=0, zero = 0):  
         '''        
 
@@ -677,7 +676,6 @@ class analyze:
             max_peak_index = peaks[np.argmax(mean_spectrum[peaks])]
             f0 = fft_freqs[max_peak_index]  
 
-        # === Índices de armónicos ===
         harmonics = [f0 * n for n in range(0, mode)]
         indices = [np.argmin(np.abs(fft_freqs - f)) for f in harmonics]
 
@@ -693,8 +691,11 @@ class analyze:
                 amps[:, :, k] = 2 * np.abs(harmonic_vals) / N
             phases[:, :, k] = np.angle(harmonic_vals)
             
-       # spectrum = np.stack(mean_spectrum, fft_freqs)
-        return harmonics, amps, phases, mean_spectrum, fft_freqs
+        # spectrum = np.stack(mean_spectrum, fft_freqs)
+        if f0 is None:
+            return harmonics, amps, phases, mean_spectrum, fft_freqs
+        else:
+            return harmonics, amps, phases
         
     @classmethod
     def polar(cls, img, center=None, ell=[1, 1], show=False, **kwargs):
