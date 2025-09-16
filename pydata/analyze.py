@@ -115,7 +115,7 @@ class analyze:
             (cy, cx) coordinates of the region's centroid.
         '''
 
-        inv_mask = np.logical_not(mask)
+        inv_mask = ~mask
 
         label_img = label(inv_mask)
         props = regionprops(label_img)
@@ -178,24 +178,13 @@ class analyze:
             displaced_image = cls.load_image(displaced_path)
         
             while True:
-                Mask = cls.mask(displaced_image, smoothed=smoothed)
-                mask = np.logical_not(Mask)
-        
-                # apply mask
-                img_result = displaced_image.copy()
-                img_result[mask] = reference[mask]
-        
-                plt.figure()
-                plt.imshow(displaced_image*Mask, cmap="gray")
-                plt.title(f"Smoothed = {smoothed}")
-                plt.draw()
+                mask = cls.mask(displaced_image, smoothed=smoothed, show_mask=True)
                 plt.pause(10)
                 plt.close("all")
         
                 message = input("Continue with this mask? [Y,n]: ")
         
                 if message == "Y":
-                    plt.close("all")
                     break
                 elif message == "n":
                     try:
@@ -493,7 +482,7 @@ class analyze:
                     plt.ylabel('Frequency [Hz]')
                     plt.xlabel('Time [sec]')
                     plt.title('Average Spectrogram over block')
-                    plt.colorbar(label='Amplitude (m)')
+                    plt.colorbar(label='ln(Amplitude)')
                     plt.tight_layout()
                     plt.show()
         
