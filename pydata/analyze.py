@@ -13,10 +13,12 @@ import pandas as pd
 import matplotlib.pyplot as plt
 import matplotlib.animation as animation
 from scipy.ndimage import uniform_filter
+
 from skimage import io
-from skimage.measure import regionprops, label
+from skimage.measure import regionprops, label, find_contours
 from scipy.signal import find_peaks
-from skimage.transform import warp_polar
+from skimage.transform import warp, rotate
+
 from tqdm import tqdm
 
 class analyze:
@@ -115,7 +117,7 @@ class analyze:
             (cy, cx) coordinates of the region's centroid.
         '''
 
-        inv_mask = np.logical_not(mask)
+        inv_mask = ~mask
 
         label_img = label(inv_mask)
         props = regionprops(label_img)
@@ -134,7 +136,7 @@ class analyze:
             cy, cx = int(Cy), int(Cx)
             
             center = (cy, cx)
-            
+
         return center
     
     @classmethod
@@ -178,24 +180,13 @@ class analyze:
             displaced_image = cls.load_image(displaced_path)
         
             while True:
-                Mask = cls.mask(displaced_image, smoothed=smoothed)
-                mask = np.logical_not(Mask)
-        
-                # apply mask
-                img_result = displaced_image.copy()
-                img_result[mask] = reference[mask]
-        
-                plt.figure()
-                plt.imshow(displaced_image*Mask, cmap="gray")
-                plt.title(f"Smoothed = {smoothed}")
-                plt.draw()
+                mask = cls.mask(displaced_image, smoothed=smoothed, show_mask=True)
                 plt.pause(10)
                 plt.close("all")
         
                 message = input("Continue with this mask? [Y,n]: ")
         
                 if message == "Y":
-                    plt.close("all")
                     break
                 elif message == "n":
                     try:
@@ -214,14 +205,10 @@ class analyze:
             mask_applied = False
     
             if smoothed:
-                Mask = cls.mask(displaced_image, smoothed = smoothed)
-                mask = np.logical_not(Mask)
-            
-                img_result = displaced_image.copy()
-                img_result[mask] = reference[mask]
                 
-                image_to_use = img_result
-                center = cls.center(Mask)
+                mask = cls.mask(displaced_image, smoothed = smoothed)
+                image_to_use = np.where(mask==1, reference, displaced_image)
+                center = cls.center(mask)
                 centers.append(center)        
                 mask_applied = True
             
@@ -236,7 +223,7 @@ class analyze:
             )
             
             if mask_applied:
-                height_map *= mask
+                height_map *= ~mask
     
             base_name = fname.replace('.tif', '')
     
@@ -497,7 +484,7 @@ class analyze:
                     plt.ylabel('Frequency [Hz]')
                     plt.xlabel('Time [sec]')
                     plt.title('Average Spectrogram over block')
-                    plt.colorbar(label='Amplitude (m)')
+                    plt.colorbar(label='ln(Amplitude)')
                     plt.tight_layout()
                     plt.show()
         
@@ -508,8 +495,8 @@ class analyze:
     @classmethod
 
     def block_amplitude(cls, map_folder, f0=None, tasa=500, mode=1, num_blocks=64, block_index=0, t_limit=[], zero = 0):  
-        
         '''
+        
         Computes the amplitude and phase of harmonic components for a spatial block of height maps.
 
         Parameters
@@ -615,7 +602,7 @@ class analyze:
             
        # spectrum = np.stack(mean_spectrum, fft_freqs)
         return harmonics, amps, phases, mean_spectrum, fft_freqs
-        
+    
     @classmethod
     def polar(cls, img, center=None, ell=[1, 1], show=False, **kwargs):
         """
@@ -634,7 +621,6 @@ class analyze:
             If True, show diagnostic plots.
         """
         import cv2
-        from skimage.draw import disk
         
         # mask = (img == 0).astype(int)
         mask = cls.mask(img)  
