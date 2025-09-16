@@ -170,8 +170,6 @@ class analyze:
     
         calibration_saved = False
         file_list = sorted(os.listdir(displaced_dir))
-    
-        centers = [] 
         
         if show_mask:
             displaced_path = os.path.join(displaced_dir, file_list[10])
@@ -193,7 +191,7 @@ class analyze:
                     except ValueError:
                         print("Invalid input, keeping previous smoothed.")
 
-        for fname in tqdm(file_list):
+        for i,fname in tqdm(enumerate(file_list)):
             if not (fname.endswith('.tif') and 'reference' not in fname):
                 continue
     
@@ -204,10 +202,15 @@ class analyze:
     
             if smoothed:
                 
+                centers_path = os.path.join(displaced_dir, 'centers.txt')
+                
                 mask = cls.mask(displaced_image, smoothed = smoothed)
                 image_to_use = np.where(mask==1, reference, displaced_image)
+                
                 center = cls.center(mask)
-                centers.append(center)        
+                with open(centers_path, "w") as f:
+                    f.write(f"{i} \t {center} \n")       
+                
                 mask_applied = True
             
             else:
@@ -232,10 +235,106 @@ class analyze:
                 calibration_path = os.path.join(output_dir, 'calibration_factor.npy')
                 np.save(calibration_path, np.array([calibration_factor]))
                 calibration_saved = True
+        
+    # @classmethod
+    # def folder(cls, reference_path, displaced_dir, layers, square_size,
+    #        smoothed=None,show_mask=False):
+    #     '''
+    #     Processes a folder of ".tif" images to compute height maps using the FCD method.
     
-        centers = np.array(centers)
-        centers_path = os.path.join(output_dir, "centers.npy")
-        np.save(centers_path, centers)
+    #     Parameters
+    #     ----------
+    #     reference_path : str
+    #         Path to the reference image used by the FCD method.
+    #     displaced_dir : str
+    #         Path to the folder containing the displaced images.
+    #     layers : list
+    #         List of layer parameters for pyfcd (check pyfcd docs).
+    #     square_size : float
+    #         Size of square pattern at rest.
+    #     smoothed : int, optional
+    #         Size of the smoothing filter applied before masking.
+    #     show_mask : bool, default=False
+    #         If True, displays the generated mask and contours.
+    
+    #     Returns
+    #     -------
+    #     None
+    #         Saves height maps in a "maps" folder inside displaced_dir.
+    #     '''
+        
+    #     reference = cls.load_image(reference_path)
+    #     output_dir = os.path.join(displaced_dir, 'maps')
+    #     os.makedirs(output_dir, exist_ok=True)
+    
+    #     calibration_saved = False
+    #     file_list = sorted(os.listdir(displaced_dir))
+    
+    #     centers = [] 
+        
+    #     if show_mask:
+    #         displaced_path = os.path.join(displaced_dir, file_list[10])
+    #         displaced_image = cls.load_image(displaced_path)
+        
+    #         while True:
+    #             mask = cls.mask(displaced_image, smoothed=smoothed, show_mask=True)
+    #             plt.pause(10)
+    #             plt.close("all")
+        
+    #             message = input("Continue with this mask? [Y,n]: ")
+        
+    #             if message == "Y":
+    #                 break
+    #             elif message == "n":
+    #                 try:
+    #                     new_val = input("Enter new smoothed value (int): ")
+    #                     smoothed = int(new_val)
+    #                 except ValueError:
+    #                     print("Invalid input, keeping previous smoothed.")
+
+    #     for fname in tqdm(file_list):
+    #         if not (fname.endswith('.tif') and 'reference' not in fname):
+    #             continue
+    
+    #         displaced_path = os.path.join(displaced_dir, fname)
+    #         displaced_image = cls.load_image(displaced_path)
+    
+    #         mask_applied = False
+    
+    #         if smoothed:
+                
+    #             mask = cls.mask(displaced_image, smoothed = smoothed)
+    #             image_to_use = np.where(mask==1, reference, displaced_image)
+    #             center = cls.center(mask)
+    #             centers.append(center)        
+    #             mask_applied = True
+            
+    #         else:
+    #             image_to_use = displaced_image
+    
+    #         height_map, _, calibration_factor = fcd.compute_height_map(
+    #             reference,
+    #             image_to_use,
+    #             square_size,
+    #             layers
+    #         )
+            
+    #         if mask_applied:
+    #             height_map *= ~mask
+    
+    #         base_name = fname.replace('.tif', '')
+    
+    #         output_path = os.path.join(output_dir, f"{base_name}_map.npy")
+    #         np.save(output_path, height_map)
+    
+    #         if not calibration_saved:
+    #             calibration_path = os.path.join(output_dir, 'calibration_factor.npy')
+    #             np.save(calibration_path, np.array([calibration_factor]))
+    #             calibration_saved = True
+    
+    #     centers = np.array(centers)
+    #     centers_path = os.path.join(output_dir, "centers.npy")
+    #     np.save(centers_path, centers)
 
     @staticmethod
     def video(maps_dir, calibration_factor=None, frame_final=300, n_extra_frames=20):
