@@ -173,25 +173,39 @@ class analyze:
         calibration_saved = False
         file_list = sorted(os.listdir(displaced_dir))
         
-        if show_mask:
-            displaced_path = os.path.join(displaced_dir, file_list[10])
-            displaced_image = cls.load_image(displaced_path)
-        
-            while True:
-                mask = cls.mask(displaced_image, smoothed=smoothed, show_mask=True)
-                plt.pause(10)
-                plt.close("all")
-        
-                message = input("Continue with this mask? [Y,n]: ")
-        
-                if message == "Y":
-                    break
-                elif message == "n":
-                    try:
-                        new_val = input("Enter new smoothed value (int): ")
-                        smoothed = int(new_val)
-                    except ValueError:
-                        print("Invalid input, keeping previous smoothed.")
+        if smoothed:
+            centers_path = os.path.join(displaced_dir, 'centers.txt')                
+            try: 
+                open(centers_path, "x").close()
+            except FileExistsError:
+                pass
+            if show_mask:
+                displaced_path = os.path.join(displaced_dir, file_list[10])
+                displaced_image = cls.load_image(displaced_path)
+            
+                while True:
+                    mask = cls.mask(displaced_image, smoothed=smoothed, show_mask=True)
+                    plt.pause(10)
+                    plt.close("all")
+            
+                    message = input("Continue with this mask? [Y,n]: ")
+            
+                    if message == "Y":
+                        break
+                    elif message == "n":
+                        try:
+                            new_val = input("Enter new smoothed value (int): ")
+                            smoothed = int(new_val)
+                        except ValueError:
+                            print("Invalid input, keeping previous smoothed.")
+                else: 
+                    pass
+            else:
+                if show_mask:
+                    raise(ValueError("If show_mask == True, expect smoothed too"))
+                else:
+                    pass
+            
 
         for i,fname in tqdm(enumerate(file_list)):
             if not (fname.endswith('.tif') and 'reference' not in fname):
@@ -203,15 +217,15 @@ class analyze:
             mask_applied = False
     
             if smoothed:
-               
-                centers_path = os.path.join(displaced_dir, 'centers.txt')
-                
+         
+                centers_path = os.path.join(displaced_dir, 'centers.txt')              
                 mask = cls.mask(displaced_image, smoothed = smoothed)
                 image_to_use = np.where(mask==1, reference, displaced_image)
                 
                 center = cls.center(mask)
-                with open(centers_path, "w") as f:
-                    f.write(f"{i} \t {center} \n")       
+
+                with open(centers_path, "a") as f:  # <<< append
+                    f.write(f"{i-1}\t{center}\n"
           
                 mask_applied = True
             
@@ -240,7 +254,7 @@ class analyze:
         
     # @classmethod
     # def folder(cls, reference_path, displaced_dir, layers, square_size,
-    #        smoothed=None,show_mask=False):
+    #         smoothed=None,show_mask=False):
     #     '''
     #     Processes a folder of ".tif" images to compute height maps using the FCD method.
     
@@ -592,8 +606,6 @@ class analyze:
                 ValueError("map_folder or array is needed, not both")
      
     @classmethod
-
-
     def block_amplitude(cls, map_folder, f0=None, tasa=500, mode=1, num_blocks=64, block_index=0, zero = 0):  
         '''        
         Computes the amplitude and phase of harmonic components for a spatial block of height maps.
@@ -679,11 +691,9 @@ class analyze:
             max_peak_index = peaks[np.argmax(mean_spectrum[peaks])]
             f0 = fft_freqs[max_peak_index]  
 
-        # === Índices de armónicos ===
         harmonics = [f0 * n for n in range(0, mode)]
         indices = [np.argmin(np.abs(fft_freqs - f)) for f in harmonics]
 
-        # === Amplitud y fase para cada armónico ===
         amps = np.zeros((ny, nx, mode+1))
         phases = np.zeros((ny, nx, mode+1))
 
@@ -694,10 +704,9 @@ class analyze:
             else:
                 amps[:, :, k] = 2 * np.abs(harmonic_vals) / N
             phases[:, :, k] = np.angle(harmonic_vals)
-            
-       # spectrum = np.stack(mean_spectrum, fft_freqs)
-        return harmonics, amps, phases, mean_spectrum, fft_freqs
-    
+
+        return harmonics, amps, phases , f0
+ 
     @classmethod
     def polar(cls, img, center=None, ell=[1, 1], show=False, **kwargs):
         """
