@@ -703,9 +703,8 @@ class analyze:
             else:
                 amps[:, :, k] = 2 * np.abs(harmonic_vals) / N
             phases[:, :, k] = np.angle(harmonic_vals)
-            
-        return harmonics, amps, phases, f0
 
+        return harmonics, amps, phases , f0
         
     @classmethod
     def polar(cls, img, center=None, ell=[1, 1], show=False, **kwargs):
