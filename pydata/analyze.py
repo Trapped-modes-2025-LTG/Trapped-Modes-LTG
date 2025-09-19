@@ -141,7 +141,7 @@ class analyze:
     
     @classmethod
     def folder(cls, reference_path, displaced_dir, layers, square_size,
-           smoothed=None,show_mask=False):
+               smoothed=None, show_mask=False):
         '''
         Processes a folder of ".tif" images to compute height maps using the FCD method.
     
@@ -165,31 +165,38 @@ class analyze:
         None
             Saves height maps in a "maps" folder inside displaced_dir.
         '''
-        
+    
         reference = cls.load_image(reference_path)
         output_dir = os.path.join(displaced_dir, 'maps')
         os.makedirs(output_dir, exist_ok=True)
     
         calibration_saved = False
         file_list = sorted(os.listdir(displaced_dir))
-        
+        tif_list = [f for f in file_list if f.endswith('.tif') and 'reference' not in f]
+    
+        existing_maps = sorted(f for f in os.listdir(output_dir) if f.endswith('_map.npy'))
+        start_index = len(existing_maps)
+    
+        centers_path = os.path.join(displaced_dir, 'centers.txt')
         if smoothed:
-            centers_path = os.path.join(displaced_dir, 'centers.txt')                
-            try: 
-                open(centers_path, "x").close()
-            except FileExistsError:
-                pass
+            if not os.path.exists(centers_path):
+                open(centers_path, "w").close()
+            # also resume from centers.txt line count
+            with open(centers_path, "r") as f:
+                lines = f.readlines()
+            start_index = max(start_index, len(lines))
+    
             if show_mask:
-                displaced_path = os.path.join(displaced_dir, file_list[10])
+                displaced_path = os.path.join(displaced_dir, tif_list[min(10, len(tif_list)-1)])
                 displaced_image = cls.load_image(displaced_path)
-            
+    
                 while True:
                     mask = cls.mask(displaced_image, smoothed=smoothed, show_mask=True)
                     plt.pause(10)
                     plt.close("all")
-            
+    
                     message = input("Continue with this mask? [Y,n]: ")
-            
+    
                     if message == "Y":
                         break
                     elif message == "n":
@@ -198,37 +205,25 @@ class analyze:
                             smoothed = int(new_val)
                         except ValueError:
                             print("Invalid input, keeping previous smoothed.")
-                else: 
-                    pass
             else:
                 if show_mask:
                     raise(ValueError("If show_mask == True, expect smoothed too"))
-                else:
-                    pass
-            
-
-        for i,fname in tqdm(enumerate(file_list)):
-            if not (fname.endswith('.tif') and 'reference' not in fname):
-                continue
     
+        # Main loop
+        for i, fname in tqdm(enumerate(tif_list[start_index:], start=start_index)):
             displaced_path = os.path.join(displaced_dir, fname)
             displaced_image = cls.load_image(displaced_path)
     
             mask_applied = False
-    
             if smoothed:
-         
-                centers_path = os.path.join(displaced_dir, 'centers.txt')              
-                mask = cls.mask(displaced_image, smoothed = smoothed)
-                image_to_use = np.where(mask==1, reference, displaced_image)
-                
+                mask = cls.mask(displaced_image, smoothed=smoothed)
+                image_to_use = np.where(mask == 1, reference, displaced_image)
+    
                 center = cls.center(mask)
-
-                with open(centers_path, "a") as f:  # <<< append
-                    f.write(f"{i-1}\t{center}\n"
-          
+                with open(centers_path, "a") as f:  # append
+                    f.write(f"{i}\t{center}\n")
+    
                 mask_applied = True
-            
             else:
                 image_to_use = displaced_image
     
@@ -238,12 +233,11 @@ class analyze:
                 square_size,
                 layers
             )
-            
+    
             if mask_applied:
                 height_map *= ~mask
     
             base_name = fname.replace('.tif', '')
-    
             output_path = os.path.join(output_dir, f"{base_name}_map.npy")
             np.save(output_path, height_map)
     
@@ -251,6 +245,7 @@ class analyze:
                 calibration_path = os.path.join(output_dir, 'calibration_factor.npy')
                 np.save(calibration_path, np.array([calibration_factor]))
                 calibration_saved = True
+
         
     # @classmethod
     # def folder(cls, reference_path, displaced_dir, layers, square_size,
