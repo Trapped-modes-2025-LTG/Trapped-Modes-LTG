@@ -40,7 +40,7 @@ class analyze:
         return io.imread(path, as_gray=True).astype(np.float32)
     
     @classmethod
-    def mask(cls,image, smoothed = 14, show_mask = False, center = False):
+    def mask(cls,image, smoothed = 14, show_mask = False, find_center = False):
         '''
         Creates a mask for the region related to the floating structure and detects its center.
     
@@ -94,7 +94,7 @@ class analyze:
             plt.tight_layout()
             plt.show()
 
-        if center: 
+        if find_center: 
             return mask, cls.center(mask)
         else:
             return mask
@@ -620,7 +620,6 @@ class analyze:
         """
         import cv2
         
-        # mask = (img == 0).astype(int)
         mask = cls.mask(img)  
         contour = cls._set_contour(mask, **kwargs)
         contour = np.array(contour, dtype=np.float32)
@@ -639,53 +638,48 @@ class analyze:
                        center=(cx, cy),     
                        resize=True,
                        order=1)
-    
-        # # --- find the *new* center after rotation+resize by rotating a tiny marker
-        # H, W = img.shape[:2]
-        # marker = np.zeros((H, W), dtype=float)
-        # # draw a small disk at (row=cy, col=cx)
-        # rr, cc = disk((cy, cx), radius=2, shape=marker.shape)
-        # marker[rr, cc] = 1.0
-        
-        # marker_r = rotate(marker,
-        #                   angle=angle,
-        #                   center=(cx, cy),
-        #                   resize=True,
-        #                   )
-        
-        # nz = np.argwhere(marker_r > 0.5)  # rows, cols of the rotated marker
-        # if nz.size == 0:
-        #     raise ValueError("Couln´t find rotated center")
-        # else:
-        #     new_cy, new_cx = nz.mean(axis=0)  # centroid in (row, col)
-        #     new_cx = float(new_cx)
-        #     new_cy = float(new_cy)
-    
+
         if isinstance(ell, list) and len(ell) == 2:
             a, b = ell
         else:
             raise TypeError("ell must be a list as [y/y_max, x/x_max]")
         
+        mask2 = cls.mask(img_r)       # TODO: must be a smoothest way
+        center2 = cls.center(mask2)
+        
         ep_img = cls.warp_polar2(img_r,
-                                    center=(int(cx), int(cy)),
-                                    a=a, b=b)       # TODO: cambié los parametros de _elliptic_warp
+                                    center=[center2[1], center2[0]],
+                                    ell = ell, 
+                                    **kwargs)
         
         if show:
-            fig, ax = plt.subplots(1, 3, figsize=(12, 4))
-            ax[0].imshow(img, cmap="gray")
-            ax[0].axis("off")
-            ax[0].scatter(cx, cy, s=30, c="r")
-            ax[0].set_title("Original")
-    
-            ax[1].imshow(img_r, cmap="gray")
-            ax[1].axis("off")
-            ax[1].scatter(cx, cy, s=30, c="r")
-            ax[1].set_title("Rotated (with new center)")
-    
-            ax[2].imshow(ep_img, cmap="gray")
-            ax[2].set_title("Rotated → Elliptical coordinates")
-            ax[2].set_ylabel(r"$\theta$ (°)")
-            ax[2].set_xlabel("r (u.a.)")
+            fig = plt.figure(figsize=(8, 8))
+            gs = fig.add_gridspec(2, 2)
+            
+            # Top-left
+            ax0 = fig.add_subplot(gs[0, 0])
+            ax0.imshow(img, cmap="gray")
+            ax0.axis("off")
+            ax0.scatter(cx, cy, s=30, c="r")
+            ax0.set_title("Original")
+            
+            # Top-right
+            ax1 = fig.add_subplot(gs[0, 1])
+            ax1.imshow(img_r, cmap="gray")
+            ax1.axis("off")
+            ax1.scatter(center2[1], center2[0], s=30, c="r")
+            ax1.set_title("Rotated (with new center)")
+            
+            # Bottom (spans both columns)
+            ax2 = fig.add_subplot(gs[1, :])
+            ax2.imshow(ep_img, cmap="gray")
+            ax2.set_title("Rotated → Elliptical coordinates")
+            ax2.set_ylabel(r"$\theta$ (°)")
+            ax2.set_xlabel("r (u.a.)")
+            
+            plt.tight_layout()
+            plt.show()
+
     
         return ep_img
     
@@ -711,11 +705,11 @@ class analyze:
         
         if radius is None:
             radius = np.max(
-                np.hypot(cx,cy), 
-                np.hypot(cx-  img.shape[0], cy), 
-                np.hypot(cx, cy - img.shape[1]), 
-                np.hypot(cx - img.shape[0], cy - img.shape[1])
-                )
+                [np.hypot(cx,cy), 
+                np.hypot(cx-  img.shape[0]-1, cy), 
+                np.hypot(cx, cy - img.shape[1]-1), 
+                np.hypot(cx - img.shape[0]-1, cy - img.shape[1]-1)
+                ])
             
         if output_shape is None:
             height = 360
@@ -728,7 +722,7 @@ class analyze:
         k_angle = height /(2*np.pi)
         k_radius = width / radius
         
-        warp_args = {"k_angle":k_angle, "k_radius": k_radius, "center": center, "ell": ell}
+        warp_args = {"k_angle": k_angle, "k_radius": k_radius, "center": center, "ell": ell}
         map_func = cls._linear_polar_mapping2
         
         warped = warp(
@@ -736,8 +730,10 @@ class analyze:
                 )
     
         return warped
+    
     @classmethod
     def _linear_polar_mapping2(cls,output_coords, k_angle, k_radius, center, ell):
+        
         """Inverse mapping for elliptical polar transform.
     
         Parameters
@@ -754,16 +750,15 @@ class analyze:
         ell : list
             Semi-axes scaling factors for x and y.
         """
-        a , b = ell
-        
-        angle = output_coords[:, 0] / k_angle
-        radius = output_coords[:, 1] / k_radius
-    
+        a, b = ell
         cy, cx = center
-        rr = cy + b * radius * np.sin(angle)  # y coordinate
-        cc = cx + a * radius * np.cos(angle)  # x coordinate
     
-        return np.column_stack((rr, cc))  # (row, col)
+        radius = output_coords[:, 0] / k_radius   # cols → r
+        angle  = output_coords[:, 1] / k_angle    # rows → θ
+    
+        rr = cy + b * radius * np.sin(angle)  # y (row)
+        cc = cx + a * radius * np.cos(angle)  # x (col)
+        return np.column_stack((rr, cc))
     
     @classmethod
     def _set_contour(cls, mask, show = False):
