@@ -141,7 +141,7 @@ class analyze:
     
     @classmethod
     def folder(cls, reference_path, displaced_dir, layers, square_size,
-               smoothed=None, polar = None,show_mask=False, **kwargs):
+               smoothed=None, polar = False,show_mask=False, **kwargs):
         '''
         Processes a folder of ".tif" images to compute height maps using the FCD method.
     
@@ -239,7 +239,7 @@ class analyze:
     
             base_name = fname.replace('.tif', '')
             
-            if polar is None:
+            if polar is False:
                 output_path = os.path.join(output_dir, f"{base_name}_map.npy")
                 np.save(output_path, height_map)
             else:
