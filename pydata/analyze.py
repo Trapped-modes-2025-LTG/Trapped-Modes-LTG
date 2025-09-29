@@ -637,7 +637,7 @@ class analyze:
         img_r = rotate(img,
                        angle=angle,
                        center=(cx, cy),     
-                       resize=False,
+                       resize=True,
                        order=1)
     
         # # --- find the *new* center after rotation+resize by rotating a tiny marker
@@ -664,15 +664,11 @@ class analyze:
         if isinstance(ell, list) and len(ell) == 2:
             a, b = ell
         else:
-            raise TypeError("ell must be a list with len = 2")
-    
-        # ep_img = cls._elliptic_warp(img_r,
-        #                             center=(int(new_cx), int(new_cy)),
-        #                             a=a, b=b)
+            raise TypeError("ell must be a list as [y/y_max, x/x_max]")
         
-        ep_img = cls._elliptic_warp(img_r,
+        ep_img = cls.warp_polar2(img_r,
                                     center=(int(cx), int(cy)),
-                                    a=a, b=b)
+                                    a=a, b=b)       # TODO: cambié los parametros de _elliptic_warp
         
         if show:
             fig, ax = plt.subplots(1, 3, figsize=(12, 4))
@@ -694,7 +690,7 @@ class analyze:
         return ep_img
     
     @classmethod
-    def _elliptic_warp(cls,img, center, a, b, output_shape = [400,800]):
+    def warp_polar2(cls,img, center,radius = None , ell = [1,1] , output_shape = None, **kwargs):
         """
         Elliptic-polar warp using skimage.transform.warp.
         Ellipses (x/a)^2 + (y/b)^2 = const become horizontal lines.
@@ -711,30 +707,63 @@ class analyze:
             Shape of the warped image (rows=r, cols=theta).
         """
         
-        H, W = img.shape[:2]
         cy, cx = center
         
-        out_r, out_theta = output_shape
+        if radius is None:
+            radius = np.max(
+                np.hypot(cx,cy), 
+                np.hypot(cx-  img.shape[0], cy), 
+                np.hypot(cx, cy - img.shape[1]), 
+                np.hypot(cx - img.shape[0], cy - img.shape[1])
+                )
+            
+        if output_shape is None:
+            height = 360
+            width = int(np.ceil(radius))
+            output_shape = (height, width)  
+        else:
+            height = output_shape[0]
+            width = output_shape[1]
+            
+        k_angle = height /(2*np.pi)
+        k_radius = width / radius
         
+        warp_args = {"k_angle":k_angle, "k_radius": k_radius, "center": center, "ell": ell}
+        map_func = cls._linear_polar_mapping2
+        
+        warped = warp(
+                img, map_func, map_args=warp_args, output_shape=output_shape, **kwargs
+                )
     
-        rx = min(cx, W - 1 - cx) /a
-        ry = min(cy, H - 1 - cy) /b
-        r_max = max(0.0, min(rx, ry))
-        
-        def inverse_map(coords):
-            """coords: (rr, cc) in output image → (y, x) in input"""
-            rr, cc = coords.T
-            # normalize to [0, r_max] and [-pi, pi]
-            r = rr / (out_r - 1) * r_max
-            theta = (cc / out_theta) * 2*np.pi - np.pi
-
-            x = cx + (a * r * np.cos(theta))
-            y = cy + (b * r * np.sin(theta))
-            return np.column_stack((y, x))  # skimage expects (row, col) = (y, x)
-
-        warped = warp(img, inverse_map, output_shape=output_shape,
-                      order=1, mode='constant', cval=0)
         return warped
+    @classmethod
+    def _linear_polar_mapping2(cls,output_coords, k_angle, k_radius, center, ell):
+        """Inverse mapping for elliptical polar transform.
+    
+        Parameters
+        ----------
+        output_coords : (M, 2) ndarray
+            Array of (row, col) coordinates in the output image.
+            row → angle, col → radius.
+        k_angle : float
+            Scaling from output rows → angle.
+        k_radius : float
+            Scaling from output cols → radius.
+        center : (cy, cx)
+            Center of ellipses.
+        ell : list
+            Semi-axes scaling factors for x and y.
+        """
+        a , b = ell
+        
+        angle = output_coords[:, 0] / k_angle
+        radius = output_coords[:, 1] / k_radius
+    
+        cy, cx = center
+        rr = cy + b * radius * np.sin(angle)  # y coordinate
+        cc = cx + a * radius * np.cos(angle)  # x coordinate
+    
+        return np.column_stack((rr, cc))  # (row, col)
     
     @classmethod
     def _set_contour(cls, mask, show = False):
