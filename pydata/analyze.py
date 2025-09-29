@@ -602,7 +602,7 @@ class analyze:
         return harmonics, amps, phases , f0
  
     @classmethod
-    def polar(cls, img, center=None, ell=[1, 1], show=False, **kwargs):
+    def polar(cls, img, center=None, ell=[1, 1],output_shape = None, show=False):
         """
         Convert image to elliptical-polar coordinates.
         Uses the *new* center after rotating with resize=True.
@@ -621,7 +621,7 @@ class analyze:
         import cv2
         
         mask = cls.mask(img)  
-        contour = cls._set_contour(mask, **kwargs)
+        contour = cls._set_contour(mask) 
         contour = np.array(contour, dtype=np.float32)
         contour_cv = contour[:, ::-1]  # (y,x) -> (x,y) 
     
@@ -644,42 +644,37 @@ class analyze:
         else:
             raise TypeError("ell must be a list as [y/y_max, x/x_max]")
         
-        mask2 = cls.mask(img_r)       # TODO: must be a smoothest way
+        mask2 = cls.mask(img_r)       # TODO: must be a wiser way
         center2 = cls.center(mask2)
         
         ep_img = cls.warp_polar2(img_r,
                                     center=[center2[1], center2[0]],
                                     ell = ell, 
-                                    **kwargs)
+                                    output_shape = output_shape)
         
         if show:
             fig = plt.figure(figsize=(8, 8))
             gs = fig.add_gridspec(2, 2)
             
-            # Top-left
             ax0 = fig.add_subplot(gs[0, 0])
             ax0.imshow(img, cmap="gray")
             ax0.axis("off")
             ax0.scatter(cx, cy, s=30, c="r")
             ax0.set_title("Original")
             
-            # Top-right
             ax1 = fig.add_subplot(gs[0, 1])
             ax1.imshow(img_r, cmap="gray")
             ax1.axis("off")
             ax1.scatter(center2[1], center2[0], s=30, c="r")
             ax1.set_title("Rotated (with new center)")
             
-            # Bottom (spans both columns)
             ax2 = fig.add_subplot(gs[1, :])
-            ax2.imshow(ep_img, cmap="gray")
+            ax2.imshow(ep_img, cmap="gray", extent = (0,ep_img.shape[1], 0,360))
             ax2.set_title("Rotated → Elliptical coordinates")
             ax2.set_ylabel(r"$\theta$ (°)")
             ax2.set_xlabel("r (u.a.)")
             
             plt.tight_layout()
-            plt.show()
-
     
         return ep_img
     
@@ -695,10 +690,13 @@ class analyze:
             Input image.
         center : (cy, cx)
             Center of concentric ellipses (in pixels).
-        a, b : floats
-            Semi-axes scaling factors for x and y.
+        radius : int
+            Maximum radius for interpolate, according to the image
+        ell: [y/y_max, x/x_max]
+            Semi-axes scaling factors for y and x.
         output_shape : (H, W)
             Shape of the warped image (rows=r, cols=theta).
+            Default is arround [360, 1093]
         """
         
         cy, cx = center
@@ -718,9 +716,10 @@ class analyze:
         else:
             height = output_shape[0]
             width = output_shape[1]
-            
-        k_angle = height /(2*np.pi)
-        k_radius = width / radius
+        
+        print(height, width)
+        k_angle = height /(2*np.pi)         # TODO: how many output rows per radian
+        k_radius = width / radius           # TODO: how many output columns per unit radius
         
         warp_args = {"k_angle": k_angle, "k_radius": k_radius, "center": center, "ell": ell}
         map_func = cls._linear_polar_mapping2
@@ -761,7 +760,7 @@ class analyze:
         return np.column_stack((rr, cc))
     
     @classmethod
-    def _set_contour(cls, mask, show = False):
+    def _set_contour(cls, mask, show_cont = False):
         '''
         description
         '''
@@ -779,7 +778,7 @@ class analyze:
         largest_hole = max(hole_regions, key=lambda r: r.area)
         hole_mask = (label_img == largest_hole.label)
         contours = find_contours(hole_mask, level=0.5)
-        if contours and show:
+        if contours and show_cont:
             plt.imshow(mask, cmap='gray')
             plt.plot(contours[0][:, 1], contours[0][:, 0], linewidth=2, color='red')
             plt.axis('off')
