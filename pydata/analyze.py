@@ -141,7 +141,7 @@ class analyze:
     
     @classmethod
     def folder(cls, reference_path, displaced_dir, layers, square_size,
-               smoothed=None, show_mask=False):
+               smoothed=None, polar = False,show_mask=False, **kwargs):
         '''
         Processes a folder of ".tif" images to compute height maps using the FCD method.
     
@@ -238,8 +238,14 @@ class analyze:
                 height_map *= ~mask
     
             base_name = fname.replace('.tif', '')
-            output_path = os.path.join(output_dir, f"{base_name}_map.npy")
-            np.save(output_path, height_map)
+            
+            if polar is False:
+                output_path = os.path.join(output_dir, f"{base_name}_map.npy")
+                np.save(output_path, height_map)
+            else:
+                output_path = os.path.join(output_dir, f"{base_name}_map_polar.npy")
+                height_map_polar = cls.polar(img = height_map, **kwargs)
+                output_path = os.path.join(height_map_polar, f"{base_name}_map_polar.npy")
     
             if not calibration_saved:
                 calibration_path = os.path.join(output_dir, 'calibration_factor.npy')
@@ -717,7 +723,6 @@ class analyze:
             height = output_shape[0]
             width = output_shape[1]
         
-        print(height, width)
         k_angle = height /(2*np.pi)         # TODO: how many output rows per radian
         k_radius = width / radius           # TODO: how many output columns per unit radius
         
