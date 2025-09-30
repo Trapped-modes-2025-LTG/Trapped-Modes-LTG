@@ -178,6 +178,16 @@ class analyze:
         start_index = len(existing_maps)
     
         centers_path = os.path.join(displaced_dir, 'centers.txt')
+        angles_path = os.path.join(displaced_dir, 'angles.txt')
+        
+        if polar: 
+            if not os.path.exists(angles_path):
+                open(centers_path, "w").close()
+            # also resume from centers.txt line count
+            with open(angles_path, "r") as f:
+                lines = f.readlines()
+            start_index = max(start_index, len(lines))
+            
         if smoothed:
             if not os.path.exists(centers_path):
                 open(centers_path, "w").close()
@@ -215,6 +225,7 @@ class analyze:
             displaced_image = cls.load_image(displaced_path)
     
             mask_applied = False
+            
             if smoothed:
                 mask = cls.mask(displaced_image, smoothed=smoothed)
                 image_to_use = np.where(mask == 1, reference, displaced_image)
@@ -224,6 +235,17 @@ class analyze:
                     f.write(f"{i}\t{center}\n")
     
                 mask_applied = True
+                
+                if polar:
+                    import cv2
+                    contour = cls._set_contour(mask) 
+                    contour = np.array(contour, dtype=np.float32)
+                    contour_cv = contour[:, ::-1]  # (y,x) -> (x,y) 
+                    _, _, angle = cv2.fitEllipse(contour_cv)
+                    
+                    with open(angles_path, "a") as f:  # append
+                        f.write(f"{i}\t{angle}\n")
+                        
             else:
                 image_to_use = displaced_image
     
@@ -244,7 +266,7 @@ class analyze:
                 np.save(output_path, height_map)
             else:
                 output_path = os.path.join(output_dir, f"{base_name}_map_polar.npy")
-                height_map_polar = cls.polar(img = height_map, **kwargs)
+                height_map_polar = cls.polar(img = height_map, angle = angle,**kwargs)
                 output_path = os.path.join(height_map_polar, f"{base_name}_map_polar.npy")
     
             if not calibration_saved:
@@ -608,7 +630,7 @@ class analyze:
         return harmonics, amps, phases , f0
  
     @classmethod
-    def polar(cls, img, center=None, ell=[1, 1],output_shape = None, show=False):
+    def polar(cls, img, center=None, ell=[1, 1],angle = None, output_shape = None, show=False):
         """
         Convert image to elliptical-polar coordinates.
         Uses the *new* center after rotating with resize=True.
@@ -626,19 +648,33 @@ class analyze:
         """
         import cv2
         
-        mask = cls.mask(img)  
-        contour = cls._set_contour(mask) 
-        contour = np.array(contour, dtype=np.float32)
-        contour_cv = contour[:, ::-1]  # (y,x) -> (x,y) 
-    
-        if center is None:
-            center_xy, _, angle = cv2.fitEllipse(contour_cv)
+        if angle is None:
+            try:
+                mask = cls.mask(img)  
+                contour = cls._set_contour(mask) 
+                contour = np.array(contour, dtype=np.float32)
+                contour_cv = contour[:, ::-1]  # (y,x) -> (x,y) 
+                
+                if center is None:
+                    center_xy, _, angle = cv2.fitEllipse(contour_cv)
+                else:
+                    _, _, angle = cv2.fitEllipse(contour_cv)
+                    center_xy = tuple(center)
+            
+                cx, cy = float(center_xy[0]), float(center_xy[1])
+                
+            except IndexError:
+                print("Wrong mask sended. Please check Documentation, or write to @JBGiordano")
+                sys.exit()
+                
         else:
-            _, _, angle = cv2.fitEllipse(contour_cv)
-            center_xy = tuple(center)
-    
-        cx, cy = float(center_xy[0]), float(center_xy[1])
-    
+            angle = angle   # :)
+            if center is None:
+                center_xy = tuple(center)
+                cx, cy = float(center_xy[0]), float(center_xy[1])
+            else:
+                raise ValueError("Angle and not center is not a compatible option")
+            
         img_r = rotate(img,
                        angle=angle,
                        center=(cx, cy),     
