@@ -182,7 +182,7 @@ class analyze:
         
         if polar: 
             if not os.path.exists(angles_path):
-                open(centers_path, "w").close()
+                open(angles_path, "w").close()
             # also resume from centers.txt line count
             with open(angles_path, "r") as f:
                 lines = f.readlines()
@@ -266,7 +266,7 @@ class analyze:
                 np.save(output_path, height_map)
             else:
                 output_path = os.path.join(output_dir, f"{base_name}_map_polar.npy")
-                height_map_polar = cls.polar(img = height_map, angle = angle,**kwargs)
+                height_map_polar = cls.polar(img = height_map, center = center,angle = angle,**kwargs)
                 output_path = os.path.join(height_map_polar, f"{base_name}_map_polar.npy")
     
             if not calibration_saved:
@@ -669,7 +669,7 @@ class analyze:
                 
         else:
             angle = angle   # :)
-            if center is None:
+            if center is not None:
                 center_xy = tuple(center)
                 cx, cy = float(center_xy[0]), float(center_xy[1])
             else:
