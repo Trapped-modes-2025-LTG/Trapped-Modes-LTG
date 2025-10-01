@@ -167,6 +167,10 @@ class analyze:
     
         reference = cls.load_image(reference_path)
         
+        calibration_saved = False
+        file_list = sorted(os.listdir(displaced_dir))
+        tif_list = [f for f in file_list if f.endswith('.tif') and 'reference' not in f]
+        
         if polar:
             output_dir = os.path.join(displaced_dir, 'maps_polar')
         else:
@@ -174,30 +178,15 @@ class analyze:
         
         os.makedirs(output_dir, exist_ok=True)
     
-        calibration_saved = False
-        file_list = sorted(os.listdir(displaced_dir))
-        tif_list = [f for f in file_list if f.endswith('.tif') and 'reference' not in f]
-    
         existing_maps = sorted(f for f in os.listdir(output_dir) if f.endswith('_map.npy'))
         start_index = len(existing_maps)
     
         centers_path = os.path.join(output_dir, 'centers.txt')
-        # angles_path = os.path.join(output_dir, 'angles.txt')
-        
-        if polar: 
-            pass
-            # if not os.path.exists(angles_path):
-            #     open(angles_path, "w").close()
-            # # also resume from centers.txt line count
-            
-            # with open(angles_path, "r") as f:
-            #     lines = f.readlines()
-            # start_index = max(start_index, len(lines))
             
         if smoothed:
             if not os.path.exists(centers_path):
                 open(centers_path, "w").close()
-            # also resume from centers.txt line count
+
             with open(centers_path, "r") as f:
                 lines = f.readlines()
             start_index = max(start_index, len(lines))
@@ -226,7 +215,10 @@ class analyze:
                     raise(ValueError("If show_mask == True, expect smoothed too"))
     
 
-        for i, fname in tqdm(enumerate(tif_list[start_index:], start=start_index)):
+        for i, fname in tqdm(
+            enumerate(tif_list[start_index:], start=start_index),
+            total=len(tif_list) - start_index):
+            
             displaced_path = os.path.join(displaced_dir, fname)
             displaced_image = cls.load_image(displaced_path)
     
@@ -236,10 +228,7 @@ class analyze:
                 mask = cls.mask(displaced_image, smoothed=smoothed)
                 image_to_use = np.where(mask == 1, reference, displaced_image)
     
-                center = cls.center(mask)
-                with open(centers_path, "a") as f:  # append
-                    f.write(f"{i}\t{center}\n")
-    
+                center = cls.center(mask)    
                 mask_applied = True
                 
                 if polar:
@@ -249,8 +238,6 @@ class analyze:
                     contour_cv = contour[:, ::-1]  # (y,x) -> (x,y) 
                     _, _, angle = cv2.fitEllipse(contour_cv)
                     
-                    # with open(angles_path, "a") as f:  # append
-                    #     f.write(f"{i}\t{angle}\n")
                         
             else:
                 image_to_use = displaced_image
@@ -274,7 +261,11 @@ class analyze:
                 output_path = os.path.join(output_dir, f"{base_name}_map_polar.npy")
                 height_map_polar = cls.polar(img = height_map, center = [center[1], center[0]],angle = angle,**kwargs)
                 np.save(output_path, height_map_polar)
-    
+                
+            if smoothed:         
+                with open(centers_path, "a") as f:  # append
+                    f.write(f"{i}\t{center}\n")
+            
             if not calibration_saved:
                 calibration_path = os.path.join(output_dir, 'calibration_factor.npy')
                 np.save(calibration_path, np.array([calibration_factor]))
