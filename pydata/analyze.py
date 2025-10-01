@@ -13,12 +13,11 @@ import pandas as pd
 import matplotlib.pyplot as plt
 import matplotlib.animation as animation
 from scipy.ndimage import uniform_filter
-
 from skimage import io
 from skimage.measure import regionprops, label, find_contours
 from scipy.signal import find_peaks
 from skimage.transform import warp, rotate
-
+import cv2
 from tqdm import tqdm
 
 class analyze:
@@ -167,7 +166,12 @@ class analyze:
         '''
     
         reference = cls.load_image(reference_path)
-        output_dir = os.path.join(displaced_dir, 'maps')
+        
+        if polar:
+            output_dir = os.path.join(displaced_dir, 'maps_polar')
+        else:
+            output_dir = os.path.join(displaced_dir, 'maps')
+        
         os.makedirs(output_dir, exist_ok=True)
     
         calibration_saved = False
@@ -177,16 +181,18 @@ class analyze:
         existing_maps = sorted(f for f in os.listdir(output_dir) if f.endswith('_map.npy'))
         start_index = len(existing_maps)
     
-        centers_path = os.path.join(displaced_dir, 'centers.txt')
-        angles_path = os.path.join(displaced_dir, 'angles.txt')
+        centers_path = os.path.join(output_dir, 'centers.txt')
+        # angles_path = os.path.join(output_dir, 'angles.txt')
         
         if polar: 
-            if not os.path.exists(angles_path):
-                open(centers_path, "w").close()
-            # also resume from centers.txt line count
-            with open(angles_path, "r") as f:
-                lines = f.readlines()
-            start_index = max(start_index, len(lines))
+            pass
+            # if not os.path.exists(angles_path):
+            #     open(angles_path, "w").close()
+            # # also resume from centers.txt line count
+            
+            # with open(angles_path, "r") as f:
+            #     lines = f.readlines()
+            # start_index = max(start_index, len(lines))
             
         if smoothed:
             if not os.path.exists(centers_path):
@@ -202,7 +208,7 @@ class analyze:
     
                 while True:
                     mask = cls.mask(displaced_image, smoothed=smoothed, show_mask=True)
-                    plt.pause(10)
+                    plt.pause(8)
                     plt.close("all")
     
                     message = input("Continue with this mask? [Y,n]: ")
@@ -219,7 +225,7 @@ class analyze:
                 if show_mask:
                     raise(ValueError("If show_mask == True, expect smoothed too"))
     
-        # Main loop
+
         for i, fname in tqdm(enumerate(tif_list[start_index:], start=start_index)):
             displaced_path = os.path.join(displaced_dir, fname)
             displaced_image = cls.load_image(displaced_path)
@@ -243,8 +249,8 @@ class analyze:
                     contour_cv = contour[:, ::-1]  # (y,x) -> (x,y) 
                     _, _, angle = cv2.fitEllipse(contour_cv)
                     
-                    with open(angles_path, "a") as f:  # append
-                        f.write(f"{i}\t{angle}\n")
+                    # with open(angles_path, "a") as f:  # append
+                    #     f.write(f"{i}\t{angle}\n")
                         
             else:
                 image_to_use = displaced_image
@@ -266,8 +272,8 @@ class analyze:
                 np.save(output_path, height_map)
             else:
                 output_path = os.path.join(output_dir, f"{base_name}_map_polar.npy")
-                height_map_polar = cls.polar(img = height_map, angle = angle,**kwargs)
-                output_path = os.path.join(height_map_polar, f"{base_name}_map_polar.npy")
+                height_map_polar = cls.polar(img = height_map, center = [center[1], center[0]],angle = angle,**kwargs)
+                np.save(output_path, height_map_polar)
     
             if not calibration_saved:
                 calibration_path = os.path.join(output_dir, 'calibration_factor.npy')
@@ -646,7 +652,11 @@ class analyze:
         show : bool
             If True, show diagnostic plots.
         """
-        import cv2
+        
+        if isinstance(ell, list) and len(ell) == 2:
+            a, b = ell
+        else:
+            raise TypeError("ell must be a list as [y/y_max, x/x_max]")
         
         if angle is None:
             try:
@@ -669,30 +679,35 @@ class analyze:
                 
         else:
             angle = angle   # :)
-            if center is None:
+            if center is not None:
                 center_xy = tuple(center)
                 cx, cy = float(center_xy[0]), float(center_xy[1])
             else:
                 raise ValueError("Angle and not center is not a compatible option")
-            
+        
+        if angle > 180:
+            angle = 180-angle
+        
         img_r = rotate(img,
-                       angle=angle,
-                       center=(cx, cy),     
+                       angle=angle,    
                        resize=True,
                        order=1)
-
-        if isinstance(ell, list) and len(ell) == 2:
-            a, b = ell
-        else:
-            raise TypeError("ell must be a list as [y/y_max, x/x_max]")
         
-        mask2 = cls.mask(img_r)       # TODO: must be a wiser way
-        center2 = cls.center(mask2)
+        shape_img = img.shape        # assuming sqare
+        shape_img_r = img_r.shape
+        
+        center2 = cls._rotate_center(y = cy, 
+                                     x = cx, 
+                                     angle_deg = angle, 
+                                     shape = shape_img, 
+                                     shape_rot = shape_img_r
+                                     )
         
         ep_img = cls.warp_polar2(img_r,
-                                    center=[center2[1], center2[0]],
-                                    ell = ell, 
-                                    output_shape = output_shape)
+                                 center=[center2[1], center2[0]],
+                                 ell = ell, 
+                                 output_shape = output_shape
+                                 )
         
         if show:
             fig = plt.figure(figsize=(8, 8))
@@ -770,6 +785,39 @@ class analyze:
                 )
     
         return warped
+    
+    @staticmethod
+    def _rotate_center(y, x, angle_deg, shape, shape_rot):
+        """
+        Rotate a point (y, x) by `angle_deg` around the image center.
+        Used after resize = True in polar()
+        
+        Parameters
+        ----------
+        y : float
+            Center's y value.
+        x : float
+            Center's x value.
+        angle_deg : float
+            Angle used for rotation
+        shape: (H,W)
+            shape of the original image.
+        shape_rot : (H, W)
+            shape of the rotated image (after resize = True)
+        """
+        
+        angle_rad = np.deg2rad(angle_deg)
+
+        cy, cx = np.array(shape) / 2
+
+        y0, x0 = y - cy, x - cx
+
+        y1 =  np.cos(angle_rad) * y0 - np.sin(angle_rad) * x0
+        x1 =  np.sin(angle_rad) * y0 + np.cos(angle_rad) * x0
+
+        cy_r, cx_r = np.array(shape_rot) / 2
+        
+        return y1 + cy_r, x1 + cx_r 
     
     @classmethod
     def _linear_polar_mapping2(cls,output_coords, k_angle, k_radius, center, ell):
