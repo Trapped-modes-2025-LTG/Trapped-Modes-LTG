@@ -13,12 +13,11 @@ import pandas as pd
 import matplotlib.pyplot as plt
 import matplotlib.animation as animation
 from scipy.ndimage import uniform_filter
-
 from skimage import io
 from skimage.measure import regionprops, label, find_contours
 from scipy.signal import find_peaks
 from skimage.transform import warp, rotate
-
+import cv2
 from tqdm import tqdm
 
 class analyze:
@@ -646,7 +645,11 @@ class analyze:
         show : bool
             If True, show diagnostic plots.
         """
-        import cv2
+        
+        if isinstance(ell, list) and len(ell) == 2:
+            a, b = ell
+        else:
+            raise TypeError("ell must be a list as [y/y_max, x/x_max]")
         
         if angle is None:
             try:
@@ -674,25 +677,30 @@ class analyze:
                 cx, cy = float(center_xy[0]), float(center_xy[1])
             else:
                 raise ValueError("Angle and not center is not a compatible option")
-            
+        
+        if angle > 180:
+            angle = 180-angle
+        
         img_r = rotate(img,
-                       angle=angle,
-                       center=(cx, cy),     
+                       angle=angle,    
                        resize=True,
                        order=1)
-
-        if isinstance(ell, list) and len(ell) == 2:
-            a, b = ell
-        else:
-            raise TypeError("ell must be a list as [y/y_max, x/x_max]")
         
-        mask2 = cls.mask(img_r)       # TODO: must be a wiser way
-        center2 = cls.center(mask2)
+        shape_img = img.shape        # assuming sqare
+        shape_img_r = img_r.shape
+        
+        center2 = cls._rotate_center(y = cy, 
+                                     x = cx, 
+                                     angle_deg = angle, 
+                                     shape = shape_img, 
+                                     shape_rot = shape_img_r
+                                     )
         
         ep_img = cls.warp_polar2(img_r,
-                                    center=[center2[1], center2[0]],
-                                    ell = ell, 
-                                    output_shape = output_shape)
+                                 center=[center2[1], center2[0]],
+                                 ell = ell, 
+                                 output_shape = output_shape
+                                 )
         
         if show:
             fig = plt.figure(figsize=(8, 8))
@@ -770,6 +778,39 @@ class analyze:
                 )
     
         return warped
+    
+    @staticmethod
+    def _rotate_center(y, x, angle_deg, shape, shape_rot):
+        """
+        Rotate a point (y, x) by `angle_deg` around the image center.
+        Used after resize = True in polar()
+        
+        Parameters
+        ----------
+        y : float
+            Center's y value.
+        x : float
+            Center's x value.
+        angle_deg : float
+            Angle used for rotation
+        shape: (H,W)
+            shape of the original image.
+        shape_rot : (H, W)
+            shape of the rotated image (after resize = True)
+        """
+        
+        angle_rad = np.deg2rad(angle_deg)
+
+        cy, cx = np.array(shape) / 2
+
+        y0, x0 = y - cy, x - cx
+
+        y1 =  np.cos(angle_rad) * y0 - np.sin(angle_rad) * x0
+        x1 =  np.sin(angle_rad) * y0 + np.cos(angle_rad) * x0
+
+        cy_r, cx_r = np.array(shape_rot) / 2
+        
+        return y1 + cy_r, x1 + cx_r 
     
     @classmethod
     def _linear_polar_mapping2(cls,output_coords, k_angle, k_radius, center, ell):
