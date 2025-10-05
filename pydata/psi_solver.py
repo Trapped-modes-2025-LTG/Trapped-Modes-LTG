@@ -25,16 +25,9 @@ class PsiSolver:
             return (nu * np.sin(nu * y) + np.cos(nu * y)) * sp.iv(1, nu * r) * sp.kv(0, nu * self.selected_c) * nu / (nu ** 2 + 1)
         else:
             return (nu * np.sin(nu * y) + np.cos(nu * y)) * sp.iv(0, nu * self.selected_c) * sp.kv(1, nu * r) * nu / (nu ** 2 + 1)
-    
-    def integrand_phi(self, nu, r, y):
-        i = (nu * np.sin(nu * y) + np.cos(nu * y)) * sp.iv(0, nu * r) * sp.kv(0, nu * self.selected_c) * nu / (nu ** 2 + 1)
-        return i 
 
     def integral(self, n, r, y):
         return quad(self.integrand, 0, self.a, args=(r, y, n))[0]
-    
-    def integral_phi(self, r, y):
-        return quad(self.integrand_phi, 0, self.a, args=(r, y))[0]
     
     def psi_n(self, n, r, y):
         if n == 1:
@@ -45,11 +38,6 @@ class PsiSolver:
             M = lambda r, y: r * np.exp(-y) * sp.jv(0, self.selected_c) * sp.hankel1(1, r)
             return -4 * np.pi ** 2 * 1j * self.selected_c * M(r, y) + 8 * self.selected_c * r * self.integral(2, r, y) + \
                    self.L(np.abs(r - self.selected_c), y) / (2 * np.sqrt(r * self.selected_c))
-                      
-    def phi_n(self,r, y):
-        phi_n = 8*self.selected_c*self.integral_phi(r, y) + \
-            self.L(np.abs(r - self.selected_c), y) / (2 * np.sqrt(r * self.selected_c))
-        return phi_n
     
     def psi_s(self, r, y):
         sol = np.zeros(np.shape(r), dtype=complex)
@@ -141,13 +129,13 @@ if __name__ == "__main__":
     
     # Cross section \psi
     
-    psi = solver.psi(R, Y, delta = 5)
+    psi = solver.psi(R, Y)
     Z = np.real(psi)
     
     plt.figure()
     plt.gca().set_aspect('equal')
     plt.gca().invert_yaxis()
-    
+
     levels = list(np.linspace(start= -20,stop = -40, num = 20))
     cs = plt.contour(R, Y, Z, levels = levels[::-1], linestyles = "-")
     
@@ -159,9 +147,7 @@ if __name__ == "__main__":
     plt.ylabel("z (u.a.)")
     plt.xlabel("r (u.a.)")
     plt.show() 
-    # Potential \psi
-    
-    # phi = solver.phi(R, Y)
+
     
 ##%%
 #
