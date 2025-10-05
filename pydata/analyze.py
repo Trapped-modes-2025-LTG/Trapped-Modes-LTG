@@ -256,10 +256,12 @@ class analyze:
             
             if polar is False:
                 output_path = os.path.join(output_dir, f"{base_name}_map.npy")
+                height_map = height_map.astype(np.float32)
                 np.save(output_path, height_map)
             else:
                 output_path = os.path.join(output_dir, f"{base_name}_map_polar.npy")
                 height_map_polar = cls.polar(img = height_map, center = [center[1], center[0]],angle = angle,**kwargs)
+                height_map_polar = height_map_polar.astype(np.float32) 
                 np.save(output_path, height_map_polar)
                 
             if smoothed:         
@@ -864,4 +866,5 @@ class analyze:
             plt.axis('off')
             plt.show()
         return contours[0] if contours else None
+
 
