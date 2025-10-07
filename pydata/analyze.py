@@ -182,6 +182,7 @@ class analyze:
         start_index = len(existing_maps)
     
         centers_path = os.path.join(output_dir, 'centers.txt')
+        factor_path = os.path.join(output_dir, 'factor.txt')
             
         if smoothed:
             if not os.path.exists(centers_path):
@@ -259,11 +260,20 @@ class analyze:
                 height_map = height_map.astype(np.float32)
                 np.save(output_path, height_map)
             else:
+                if not os.path.exists(factor_path):
+                    open(factor_path, "w").close()
+
+                with open(factor_path, "r") as f:
+                    lines = f.readlines()
+                start_index = max(start_index, len(lines))
                 output_path = os.path.join(output_dir, f"{base_name}_map_polar.npy")
-                height_map_polar = cls.polar(img = height_map, center = [center[1], center[0]],angle = angle,**kwargs)
-                height_map_polar = height_map_polar.astype(np.float32) 
+
+                height_map_polar, factor = cls.polar(img = height_map, center = [center[1], center[0]],angle = angle,**kwargs)
+                height_map_polar = height_map_polar.astype(np.float32)
+
                 np.save(output_path, height_map_polar)
-                
+                with open(factor_path, "a") as f:  # append
+                    f.write(f"{i}\t{factor}\n")
             if smoothed:         
                 with open(centers_path, "a") as f:  # append
                     f.write(f"{i}\t{center}\n")
@@ -686,7 +696,7 @@ class analyze:
                        resize=True,
                        order=1)
         
-        shape_img = img.shape        # assuming sqare
+        shape_img = img.shape        # assuming square
         shape_img_r = img_r.shape
         
         center2 = cls._rotate_center(y = cy, 
@@ -695,12 +705,26 @@ class analyze:
                                      shape = shape_img, 
                                      shape_rot = shape_img_r
                                      )
+        coords = cls._bordes(img_r)
+        ys, xs = zip(*coords)                 
+        ys = np.array(ys, dtype=float)
+        xs = np.array(xs, dtype=float)
+        cy2, cx2 = center2 
+        dists = np.hypot(xs - cx2, ys - cy2)
+        imax  = int(np.argmax(dists))
+        #y_far, x_far = ys[imax], xs[imax]
+        dmax = float(dists[imax])
         
         ep_img = cls.warp_polar2(img_r,
                                  center=[center2[1], center2[0]],
+                                 radius= dmax,
                                  ell = ell, 
                                  output_shape = output_shape
                                  )
+        
+        dist = cls._first_non_zero(ep_img)
+        
+        factor = dist / dmax
         
         if show:
             fig = plt.figure(figsize=(8, 8))
@@ -726,7 +750,7 @@ class analyze:
             
             plt.tight_layout()
     
-        return ep_img
+        return ep_img, factor
     
     @classmethod
     def warp_polar2(cls,img, center,radius = None , ell = [1,1] , output_shape = None, **kwargs):
@@ -866,5 +890,52 @@ class analyze:
             plt.axis('off')
             plt.show()
         return contours[0] if contours else None
+    
+    @classmethod
+    def _bordes(cls, mapa):
+        '''
+        description
+        '''
+        H, W = mapa.shape
+        sides = {
+            "L": (slice(None), 0),      # x = 0
+            "B": (H-1, slice(None)),    # y = H-1
+            "R": (slice(None), W-1),    # x = W-1
+            "T": (0, slice(None)),      # y = 0
+        }
+        out = []
+        for name in ["L", "B", "R", "T"]:
+            yy, xx = sides[name]
+            edge = mapa[yy, xx]          
+            idx = np.flatnonzero(edge)
+            
+            if idx.size == 0:
+                out.append(None)
+                continue
+
+            k = int(round(idx.mean()))
+            if name in ("L", "R"):
+                y = k
+                x = 0 if name == "L" else W-1
+            else:
+                y = H-1 if name == "B" else 0
+                x = k
+            out.append((y, x))
+
+        return out
+    
+    @classmethod
+    def _first_non_zero(cls, img):
+
+        M = np.abs(img)           
+        col_any = M.any(axis=0)        
+        nz_cols = np.flatnonzero(col_any)
+        if nz_cols.size == 0:
+            return None                       
+        x = int(nz_cols[-1])                 
+        #ys = np.flatnonzero(M[:, x])           
+        #y = int(ys)
+        dist = x
+        return dist
 
 
