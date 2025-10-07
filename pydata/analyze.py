@@ -267,8 +267,10 @@ class analyze:
                     lines = f.readlines()
                 start_index = max(start_index, len(lines))
                 output_path = os.path.join(output_dir, f"{base_name}_map_polar.npy")
+
                 height_map_polar, factor = cls.polar(img = height_map, center = [center[1], center[0]],angle = angle,**kwargs)
                 height_map_polar = height_map_polar.astype(np.float32)
+
                 np.save(output_path, height_map_polar)
                 with open(factor_path, "a") as f:  # append
                     f.write(f"{i}\t{factor}\n")
@@ -935,4 +937,5 @@ class analyze:
         #y = int(ys)
         dist = x
         return dist
+
 
