@@ -182,6 +182,7 @@ class analyze:
         start_index = len(existing_maps)
     
         centers_path = os.path.join(output_dir, 'centers.txt')
+        factor_path = os.path.join(output_dir, 'factor.txt')
             
         if smoothed:
             if not os.path.exists(centers_path):
@@ -259,11 +260,21 @@ class analyze:
                 height_map = height_map.astype(np.float32)
                 np.save(output_path, height_map)
             else:
+                if not os.path.exists(factor_path):
+                    open(factor_path, "w").close()
+
+                with open(factor_path, "r") as f:
+                    lines = f.readlines()
+                start_index = max(start_index, len(lines))
                 output_path = os.path.join(output_dir, f"{base_name}_map_polar.npy")
-                height_map_polar = cls.polar(img = height_map, center = [center[1], center[0]],angle = angle,**kwargs)
-                height_map_polar = height_map_polar.astype(np.float32) 
+
+                height_map_polar, factor = cls.polar(img = height_map, center = [center[1], center[0]],angle = angle,**kwargs)
+                height_map_polar = height_map_polar.astype(np.float32)
+
                 np.save(output_path, height_map_polar)
-                
+                with open(factor_path, "a") as f:  # append
+                    f.write(f"{i}\t{factor}\n")
+                    
             if smoothed:         
                 with open(centers_path, "a") as f:  # append
                     f.write(f"{i}\t{center}\n")
@@ -686,7 +697,7 @@ class analyze:
                        resize=True,
                        order=1)
         
-        shape_img = img.shape        # assuming sqare
+        shape_img = img.shape        # assuming square
         shape_img_r = img_r.shape
         
         center2 = cls._rotate_center(y = cy, 
@@ -695,12 +706,26 @@ class analyze:
                                      shape = shape_img, 
                                      shape_rot = shape_img_r
                                      )
+        coords = cls._bordes(img_r)
+        ys, xs = zip(*coords)                 
+        ys = np.array(ys, dtype=float)
+        xs = np.array(xs, dtype=float)
+        cy2, cx2 = center2 
+        dists = np.hypot(xs - cx2, ys - cy2)
+        imax  = int(np.argmax(dists))
+        #y_far, x_far = ys[imax], xs[imax]
+        dmax = float(dists[imax])
         
         ep_img = cls.warp_polar2(img_r,
                                  center=[center2[1], center2[0]],
+                                 radius= dmax,
                                  ell = ell, 
                                  output_shape = output_shape
                                  )
+        
+        dist = cls._first_non_zero(ep_img)
+        
+        factor = dist / dmax
         
         if show:
             fig = plt.figure(figsize=(8, 8))
@@ -726,7 +751,7 @@ class analyze:
             
             plt.tight_layout()
     
-        return ep_img
+        return ep_img, factor
     
     @classmethod
     def warp_polar2(cls,img, center,radius = None , ell = [1,1] , output_shape = None, **kwargs):
@@ -866,5 +891,216 @@ class analyze:
             plt.axis('off')
             plt.show()
         return contours[0] if contours else None
+    
+    @classmethod
+    def _bordes(cls, mapa):
+        '''
+        description
+        '''
+        H, W = mapa.shape
+        sides = {
+            "L": (slice(None), 0),      # x = 0
+            "B": (H-1, slice(None)),    # y = H-1
+            "R": (slice(None), W-1),    # x = W-1
+            "T": (0, slice(None)),      # y = 0
+        }
+        out = []
+        for name in ["L", "B", "R", "T"]:
+            yy, xx = sides[name]
+            edge = mapa[yy, xx]          
+            idx = np.flatnonzero(edge)
+            
+            if idx.size == 0:
+                out.append(None)
+                continue
+
+            k = int(round(idx.mean()))
+            if name in ("L", "R"):
+                y = k
+                x = 0 if name == "L" else W-1
+            else:
+                y = H-1 if name == "B" else 0
+                x = k
+            out.append((y, x))
+
+        return out
+    
+    @classmethod
+    def _first_non_zero(cls, img):
+
+        M = np.abs(img)           
+        col_any = M.any(axis=0)        
+        nz_cols = np.flatnonzero(col_any)
+        if nz_cols.size == 0:
+            return None                       
+        x = int(nz_cols[-1])                 
+        #ys = np.flatnonzero(M[:, x])           
+        #y = int(ys)
+        dist = x
+        return dist
 
 
+class ffts:
+    @classmethod    
+    def extract_cal(cls, name: str) -> float:
+        m = cal_pat.search(name)
+        if not m:
+            raise ValueError(f"Could not find cal in: {name}")
+        return float(m.group(1))
+    
+    @classmethod    
+    def extract_fac(cls,name: str) -> float:
+        m = fac_pat.search(name)
+        if not m:
+            raise ValueError(f"Could not find factor in: {name}")
+        return float(m.group(1))
+    
+    @classmethod    
+    def extract_radii(cls,key: str) -> float:
+        m = rad_pat.search(key)
+        if m:
+            return float(m.group(1))
+        raise ValueError(f"Cannot parse radius from filename: {key}")
+    
+    @classmethod    
+    def strip_group_tokens(cls,name: str) -> str:
+        stem, ext = os.path.splitext(name)
+    
+        # 1) remove replica token: _C1S0001_ (and if it appears right before the extension)
+        stem = re.sub(r"_C1S\d{4}_", "_", stem)
+        stem = re.sub(r"_C1S\d{4}(?=$)", "", stem)
+    
+        # 2) remove calibration block: _cal<decimal>_
+        #    (your files look like _cal0.00022558593749999996_)
+        stem = re.sub(r"_cal\d+(?:\.\d+)?_", "_", stem)
+    
+        # 3) remove factor block: _f<number>_  OR _f<number> just before the extension
+        #    (your example ends with ..._f768.2433822186998.npy)
+        stem = re.sub(r"_f\d+(?:\.\d+)?_", "_", stem)           # with trailing underscore
+        stem = re.sub(r"_f\d+(?:\.\d+)?(?=$)", "", stem)        # right before .npy
+    
+        return stem + ext
+
+
+    @classmethod    
+    def fft_radii(cls,arr, path):
+    
+        # arr: (n_times, n_angles) = (t, ang)
+    
+        R = cls.extract_radii(path)
+        cal = cls.extract_cal(path)
+        fac = cls.extract_fac(path)
+    
+        n_times, n_angles = arr.shape
+        N = n_times
+    
+        fft_vals = np.fft.fft(arr, axis=0) / N
+        fft_vals[0, :] = 0
+    
+        freqs = np.fft.fftfreq(N, d=dt)
+        pos_mask = freqs >= 0
+    
+        fft_abs_pos = np.abs(fft_vals)[pos_mask, :]  # (N_pos, n_angles)
+    
+        for i in range(n_angles):
+             fft_angle = fft_abs_pos[:,i]
+             fft_angle_max = np.max(fft_angle)
+             fft_angle = fft_angle/fft_angle_max
+              	
+             fft_abs_pos[:,i] = fft_angle
+    
+    
+        mean_over_angles = np.mean(fft_abs_pos, axis=1)
+        
+        n_non_nans = np.count_nonzero(fft_abs_pos[3, :] != 0)
+        r_px = int(R/(cal*fac))
+        n_radii = int(2*np.pi*r_px)
+    
+        if n_radii < 360:
+             useful = False
+             denom = np.sqrt(n_radii)
+        else:
+             useful = True
+             denom = np.sqrt(n_radii*(n_non_nans/360))
+    
+        # TODO primera std sobre las medias de los ángulos
+        std_over_angles  = np.std(fft_abs_pos,  axis=1)/denom
+        
+        return freqs[pos_mask], mean_over_angles, std_over_angles, useful
+    
+    
+    @classmethod    
+    def process(cls,height_tag, floater_tag):  
+        """
+        Defined for each water height and floater 
+        """
+    
+        npy_files = [
+            f for f in os.listdir(search_path)
+            if f.endswith(".npy") and floater_tag in f and height_tag in f
+        ]
+        
+        npy_files.sort(key=extract_radii)  # sort by radius
+        
+        results = OrderedDict()  # keep insertion order = radius order
+        
+        for f in npy_files:
+            arr = np.load(os.path.join(search_path, f))
+            freqs, mean, std, useful = cls.fft_radii(arr, f)
+            results[f] = (freqs, mean, std, useful)
+    
+        # group replicates by  S####.npy
+        grouped = defaultdict(list)
+        
+        # {... ,
+        # "r_XXmm_a1679_t1s_XX_hXX": [
+        # (freq1, mean1, std1),
+        # (freq2, mean2, std2),
+        # (freq3, mean3, std3) 
+        # ],
+        # ... }
+        
+        for fname, (freqs, mean,ses, useful) in results.items():
+            base = cls.strip_group_tokens(fname)
+            grouped[base].append((freqs, mean,ses, useful))
+    
+        # average across replicates
+        averaged = OrderedDict()
+        for base in sorted(grouped.keys(), key=extract_radii):
+            triplets = grouped[base]
+            freqs0 = triplets[0][0]                      # (F,)
+            means  = np.stack([t[1] for t in triplets])  # (R,F)
+            ses    = np.stack([t[2] for t in triplets])  # (R,F)
+        
+            with np.errstate(divide='ignore', invalid='ignore'):
+                # pesos: w_i = 1 / SE_i^2
+                w = 1.0 / np.square(ses)                 # (R,F)
+                w_sum = np.nansum(w, axis=0)             # (F,)
+                num   = np.nansum(w * means, axis=0)     # (F,)
+        
+                mean_w = np.divide(
+                    num, w_sum,
+                    out=np.full_like(w_sum, np.nan),
+                    where=w_sum > 0
+                )
+        
+                se_w = np.divide(
+                    1.0, np.sqrt(w_sum),
+                    out=np.full_like(w_sum, np.nan),
+                    where=w_sum > 0
+                )
+        
+            useful_vals = [t[3] for t in triplets]       # booleans
+            useful_red = all(useful_vals)                # o any(useful_vals), como prefieras
+        
+            averaged[base] = (freqs0, mean_w, se_w, useful_red)
+                
+            # TODO: acá hay que agregar:
+                # una división por la cantidad de datos:
+                    # se debería agregar como parámetro el factor, o el calibration	
+    		#factor
+                # medias de las stds nada más?
+                # estamos para un radio y una altura, no hay que mezclar cosas 
+                # todavía
+        return results, averaged
+    
