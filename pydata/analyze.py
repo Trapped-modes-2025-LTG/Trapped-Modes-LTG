@@ -3,7 +3,8 @@ This script contains several functions to analyze measured data.
 All of them are included in a single class called `analyze` for organizational purposes.
 Each function is explained when it is called.
 '''
-
+import re
+from collections import defaultdict, OrderedDict
 import os
 import sys
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
@@ -941,8 +942,86 @@ class analyze:
 
 
 class ffts:
+    
+    import re
+
+    '''
+
+    =============================
+    Example of use:
+        radios_npys must be a folder of .npy files, named as
+        
+        r_8mm_a1679_t1s_20_h67_C1S0003_cal0.00022558593749999996_f768.2496931285473.npy
+    =============================
+
+    import matplotlib
+    matplotlib.use("TkAgg")          # set GUI backend
+    import matplotlib.pyplot as plt
+    import os
+    import sys
+    sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..', "..")))
+    from pydata.analyze import ffts
+    
+    colormap = "magma"
+    heights = ["_h47_", "_h54_", "_h67_"]
+    floaters = ["_0_", "_10_", "_15_", "_20_"]
+    
+    base_dir = os.path.dirname(os.path.abspath(__file__))
+    search_subfolder = "radios_npys"
+    search_path = os.path.join(base_dir, search_subfolder)
+    
+    for htag in heights:
+        for etag in floaters:
+            _ , averaged = ffts.process(htag, etag, search_path)
+    
+            # all_averaged[(etag, htag)] = averaged
+    
+            plt.figure(figsize=(6,4))
+            colors = plt.cm.get_cmap(colormap, len(averaged))
+    
+            for i, (base, (freqs, mean,ses, useful)) in enumerate(
+                sorted(
+                    (kv for kv in averaged.items()),
+                    # if any(s in kv[0] for s in ("_10mm_", "_12mm_", "_14mm_"))),
+                    key=lambda kv: ffts.extract_radii(kv[0])
+                )
+            ):
+    
+    	    # TODO: Replace errors if its neccesary 
+                label = f"r={ffts.extract_radii(base):.0f} mm"
+                plt.errorbar(freqs, 
+    			mean, 
+    			yerr=ses, 
+    			fmt='.-', 
+    			capsize=3, 
+    			alpha=0.85, 
+    			color=colors(i), 
+    			label=label)
+    
+            plt.xlim(0, 12) 
+            plt.xlabel("Frecuencia (Hz)")
+    
+            plt.title(f"Floater {etag} - Height {htag}")
+            plt.legend(fontsize=8, ncol=2)
+            plt.grid( linestyle='--', alpha=0.5)
+            plt.tight_layout()	
+            safe_tag = f"{etag.strip('_')}_{htag.strip('_')}"
+            plt.savefig(f"{safe_tag}.pdf")
+            plt.show()
+    
+           #  np.savez(
+           #      os.path.join(base_dir, f"fft_results_averaged_{safe_tag}.npz"),
+           #      **averaged
+           #  )
+    '''
+
+
+    dt = 1 / 125
+
     @classmethod    
     def extract_cal(cls, name: str) -> float:
+        
+        cal_pat = re.compile(r"_cal(\d+\.\d+)_")          # captures "0.000767"
         m = cal_pat.search(name)
         if not m:
             raise ValueError(f"Could not find cal in: {name}")
@@ -950,6 +1029,8 @@ class ffts:
     
     @classmethod    
     def extract_fac(cls,name: str) -> float:
+
+        fac_pat = re.compile(r"_f(\d+(?:\.\d+)?)")       # captures "756.1381"
         m = fac_pat.search(name)
         if not m:
             raise ValueError(f"Could not find factor in: {name}")
@@ -957,6 +1038,8 @@ class ffts:
     
     @classmethod    
     def extract_radii(cls,key: str) -> float:
+
+        rad_pat = re.compile(r"_(\d+(?:\.\d+)?)mm_")
         m = rad_pat.search(key)
         if m:
             return float(m.group(1))
@@ -997,7 +1080,7 @@ class ffts:
         fft_vals = np.fft.fft(arr, axis=0) / N
         fft_vals[0, :] = 0
     
-        freqs = np.fft.fftfreq(N, d=dt)
+        freqs = np.fft.fftfreq(N, d=cls.dt)
         pos_mask = freqs >= 0
     
         fft_abs_pos = np.abs(fft_vals)[pos_mask, :]  # (N_pos, n_angles)
@@ -1030,7 +1113,7 @@ class ffts:
     
     
     @classmethod    
-    def process(cls,height_tag, floater_tag):  
+    def process(cls,height_tag, floater_tag, search_path):  
         """
         Defined for each water height and floater 
         """
@@ -1040,7 +1123,7 @@ class ffts:
             if f.endswith(".npy") and floater_tag in f and height_tag in f
         ]
         
-        npy_files.sort(key=extract_radii)  # sort by radius
+        npy_files.sort(key=cls.extract_radii)  # sort by radius
         
         results = OrderedDict()  # keep insertion order = radius order
         
@@ -1066,7 +1149,7 @@ class ffts:
     
         # average across replicates
         averaged = OrderedDict()
-        for base in sorted(grouped.keys(), key=extract_radii):
+        for base in sorted(grouped.keys(), key=cls.extract_radii):
             triplets = grouped[base]
             freqs0 = triplets[0][0]                      # (F,)
             means  = np.stack([t[1] for t in triplets])  # (R,F)
