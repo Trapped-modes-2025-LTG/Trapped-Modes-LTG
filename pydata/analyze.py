@@ -1186,3 +1186,131 @@ class ffts:
                 # todavía
         return results, averaged
     
+    @classmethod
+    def fit_me(data, key, radios, archivos_ts, file_paths, results_dir, polgrad = 1, f_min = 4.25, f_max = 5.75):
+        '''
+        Example of use:
+        ---------------
+        results_dir = os.path.join(base_dir, 'ajustes_resultados')
+        file_path = os.path.join(base_dir, 'medimos_con_juan', 'fft_results_averaged_20_h47.npz')
+        data = np.load(file_path)
+        
+        key = 'r_0mm_a1679_t1s_20_h47_C1'
+        radios = ['0', '12', '20']
+        archivos_ts = [0, 10, 15, 20] 
+        
+        file_paths = [
+            os.path.join(base_dir, 'medimos_con_juan', 'fft_results_averaged_0_h47.npz'),
+            os.path.join(base_dir, 'medimos_con_juan', 'fft_results_averaged_10_h47.npz'),
+            os.path.join(base_dir, 'medimos_con_juan', 'fft_results_averaged_15_h47.npz'),
+            os.path.join(base_dir, 'medimos_con_juan', 'fft_results_averaged_20_h47.npz'),
+        ]
+        
+        fit = fit_me(data, key, radios, archivos_ts, file_paths, results_dir)
+
+        '''
+        from scipy.optimize import curve_fit
+        
+        x = data[key]
+        frec = x[0, :]
+        amp = x[1, :] 
+        sigmas = x[2, :]
+        
+        def lorentz(f, A1, A2, gamma1, gamma2, f1, f2, B):
+            return A1 * (0.5 * gamma1)**2 / ((f - f1)**2 + (0.5 * gamma1)**2) + A2 * (0.5 * gamma2)**2 / ((f - f2)**2 + (0.5 * gamma2)**2) + B
+        
+        
+        os.makedirs(results_dir, exist_ok=True)
+
+        # iterar sobre los archivos 
+        for i,path in enumerate(file_paths):
+            data = np.load(path)#, allow_pickle=True)
+            file_name = os.path.splitext(os.path.basename(path))[0]
+            path_dir = os.path.join(results_dir, file_name)
+            os.makedirs(path_dir, exist_ok=True)
+            
+            t1s_val = archivos_ts[i]
+
+            # iterar sobre los radios
+            for r in radios:
+                key = f"r_{r}mm_a1679_t1s_{t1s_val}_h47_C1"
+                if key not in data.files:
+                    print(f"[!] Key {key} no encontrada en {file_name}")
+                    continue
+
+                x = data[key]
+                frec, amp, sigmas = x[0, :], x[1, :], x[2, :]
+
+                
+                f_min, f_max = 4.25, 5.75
+                mask_fit = (frec >= f_min) & (frec <= f_max)
+                f_fit, amps_fit, sigmas_fit = frec[mask_fit], amp[mask_fit], sigmas[mask_fit]
+
+
+                coef = np.polyfit(f_fit, amps_fit, polgrad)
+                poly_trend = np.polyval(coef, f_fit)
+                amps_fit_detrended = amps_fit - poly_trend
+                
+                
+                picos, _ = find_peaks(amps_fit_detrended, threshold = 0.0005)
+
+                A1_0 = amps_fit_detrended[picos[0]]
+                A2_0 = amps_fit_detrended[picos[1]]
+                f1_0 = f_fit[picos[0]]
+                f2_0 = f_fit[picos[1]]
+                gamma1_0 = (f_fit[picos[1]] - f_fit[picos[0]])/1.7
+                gamma2_0 = gamma1_0
+                
+                B_0 = 0
+                p0 = [A1_0, A2_0, f1_0, f2_0, gamma1_0, gamma2_0, B_0]
+
+
+                try:
+                    popt, pcov = curve_fit(
+                        lorentz, f_fit, amps_fit_detrended,
+                        p0=p0, sigma=sigmas_fit,
+                        absolute_sigma=True, maxfev=20000
+                    )
+                except Exception as e:
+                    print(f"[x] Falló el ajuste para {key} en {file_name}: {e}")
+                    continue
+
+
+                f_plot = np.linspace(f_fit.min(), f_fit.max(), 500)
+                fit_curve = lorentz(f_plot, *popt)
+
+          
+                fig, (ax1, ax2) = plt.subplots(2, 1, figsize=(8, 6), sharex=True,
+                                               gridspec_kw={'height_ratios': [3, 1]})
+
+                ax1.errorbar(f_fit, amps_fit_detrended, yerr=sigmas_fit,
+                             fmt='.', color='gray', alpha=0.7, label='Datos')
+                ax1.plot(f_plot, fit_curve, 'r-', lw=2, label='Ajuste Lorentziano')
+                ax1.set_ylabel('Amplitud')
+                ax1.set_title(f"{file_name} – {key}")
+                ax1.legend(loc='best', fontsize=8, frameon=True)
+                ax1.grid(True, ls='--', alpha=0.5)
+
+                residuals = amps_fit_detrended - np.interp(f_fit, f_plot, fit_curve)
+                ax2.axhline(0, color='black', lw=1)
+                ax2.plot(f_fit, residuals, 'o', color='blue', markersize=3, label='Residuos')
+                ax2.errorbar(f_fit, residuals, yerr=sigmas_fit, alpha=0.7)
+                ax2.set_xlabel('Frecuencia [Hz]')
+                ax2.set_ylabel('Residuo')
+                ax2.grid(True, ls='--', alpha=0.5)
+
+                plt.tight_layout()
+
+
+                fig_path = os.path.join(path_dir, f"{key}.png")
+                plt.savefig(fig_path, dpi=200)
+                plt.close(fig)
+
+           
+                param_names = ['A1', 'A2', 'f1', 'f2', 'γ1', 'γ2', 'B']
+                txt_path = os.path.join(path_dir, f"{key}_params.txt")
+                with open(txt_path, "w") as f:
+                    for name, val in zip(param_names, popt):
+                        f.write(f"{name} = {val:.6g}\n")
+
+                print(f"✔ Guardado: {fig_path}")
