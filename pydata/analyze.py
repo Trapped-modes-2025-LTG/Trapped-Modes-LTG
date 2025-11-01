@@ -948,7 +948,7 @@ class ffts:
 
     =============================
     Example of use:
-        radios_npys must be a folder of .npy files, named as
+        radios_npys must be a folder of .npy files, named like:
         
         r_8mm_a1679_t1s_20_h67_C1S0003_cal0.00022558593749999996_f768.2496931285473.npy
     =============================
@@ -1135,10 +1135,10 @@ class ffts:
         grouped = defaultdict(list)
         
         # {... ,
-        # "r_XXmm_a1679_t1s_XX_hXX": [
-        # (freq1, mean1, std1),
-        # (freq2, mean2, std2),
-        # (freq3, mean3, std3) 
+        # "r_XXmm_a1679_t1s_XX_hXX_calX.XXXX_facXXX.XXXX": [
+        # (freq1, mean1, std1, useful1),
+        # (freq2, mean2, std2, useful2),
+        # (freq3, mean3, std3, useful3) 
         # ],
         # ... }
         
@@ -1173,7 +1173,7 @@ class ffts:
                 )
         
             useful_vals = [t[3] for t in triplets]       # booleans
-            useful_red = all(useful_vals)                # o any(useful_vals), como prefieras
+            useful_red = all(useful_vals)                
         
             averaged[base] = (freqs0, mean_w, se_w, useful_red)
                 
