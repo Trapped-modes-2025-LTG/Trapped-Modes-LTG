@@ -275,7 +275,7 @@ class analyze:
                 np.save(output_path, height_map_polar)
                 with open(factor_path, "a") as f:  # append
                     f.write(f"{i}\t{factor}\n")
-                    
+
             if smoothed:         
                 with open(centers_path, "a") as f:  # append
                     f.write(f"{i}\t{center}\n")
@@ -939,7 +939,6 @@ class analyze:
         #y = int(ys)
         dist = x
         return dist
-
 
 class ffts:
     
