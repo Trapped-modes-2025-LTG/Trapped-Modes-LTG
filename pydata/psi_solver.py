@@ -46,14 +46,6 @@ class PsiSolver:
                 sol[i, j] = self.psi_n(1, r[i, j], y[i, j]) if (r[i, j] < self.selected_c) else self.psi_n(2, r[i, j], y[i, j])
         return sol
     
-    def phi(self,r,y):
-        sol = np.zeros(np.shape(r), dtype=complex)
-        for i in tqdm(range(len(r[:, 0]))):
-            for j in range(len(r[0, :])):
-                sol[i, j] = self.phi_n( r[i, j], y[i, j])
-        return sol
-    
-    
     def P_l(self,cosh_a,nu):
         return sp.eval_legendre(nu,cosh_a)
     
@@ -129,7 +121,7 @@ if __name__ == "__main__":
     
     # Cross section \psi
     
-    psi = solver.psi(R, Y)
+    psi = solver.psi(R, Y, delta = 1)
     Z = np.real(psi)
     
     plt.figure()
@@ -148,41 +140,3 @@ if __name__ == "__main__":
     plt.xlabel("r (u.a.)")
     plt.show() 
 
-    
-##%%
-#
-#plt.figure()
-#plt.gca().set_aspect('equal')
-#plt.gca().invert_yaxis()
-#
-#levels = list(np.linspace(start= -20,stop = -40, num = 20))
-#cs = plt.contour(R, Y, Z, levels = levels[::-1], linestyles = "-")
-#plt.clabel(cs, inline=True, fontsize=6, fmt="%.1f")
-## delta = 5
-#levels1 = list(np.linspace(start= -33.2799,stop = -33.28, num = 1))
-#cs1 = plt.contour(R, Y, Z, levels = levels1[::-1], linestyles = "-", colors = "k", linewidths=3)
-#
-#
-##%%
-## Extract the points of the contour
-#path = cs1.collections[0].get_paths()[0]
-#vertices = path.vertices
-#x, z = vertices[:, 0], vertices[:, 1]
-#
-#import ezdxf
-#
-## Cargar los puntos del CSV (si ya lo tenés guardado)
-## Si ya tenés x y z en memoria, podés omitir esta línea
-#x, z = np.loadtxt("contour_line_3cm.csv", delimiter=",", skiprows=1, unpack=True)
-#
-## Crear nuevo archivo DXF
-#doc = ezdxf.new(dxfversion='R2010')
-#msp = doc.modelspace()
-#
-## Agregar spline con los puntos (x,z)
-#points = list(zip(x, z))
-#msp.add_spline(points)
-#
-## Guardar como DXF
-#doc.saveas("contour_line_3cm.dxf")
-#print("✅ Archivo guardado como contour_line_3cm.dxf")

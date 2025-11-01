@@ -3,7 +3,8 @@ This script contains several functions to analyze measured data.
 All of them are included in a single class called `analyze` for organizational purposes.
 Each function is explained when it is called.
 '''
-
+import re
+from collections import defaultdict, OrderedDict
 import os
 import sys
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
@@ -274,6 +275,7 @@ class analyze:
                 np.save(output_path, height_map_polar)
                 with open(factor_path, "a") as f:  # append
                     f.write(f"{i}\t{factor}\n")
+
             if smoothed:         
                 with open(centers_path, "a") as f:  # append
                     f.write(f"{i}\t{center}\n")
@@ -938,4 +940,249 @@ class analyze:
         dist = x
         return dist
 
+class ffts:
+    
+    import re
 
+    '''
+
+    =============================
+    Example of use:
+        radios_npys must be a folder of .npy files, named as
+        
+        r_8mm_a1679_t1s_20_h67_C1S0003_cal0.00022558593749999996_f768.2496931285473.npy
+    =============================
+
+    import matplotlib
+    matplotlib.use("TkAgg")          # set GUI backend
+    import matplotlib.pyplot as plt
+    import os
+    import sys
+    sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..', "..")))
+    from pydata.analyze import ffts
+    
+    colormap = "magma"
+    heights = ["_h47_", "_h54_", "_h67_"]
+    floaters = ["_0_", "_10_", "_15_", "_20_"]
+    
+    base_dir = os.path.dirname(os.path.abspath(__file__))
+    search_subfolder = "radios_npys"
+    search_path = os.path.join(base_dir, search_subfolder)
+    
+    for htag in heights:
+        for etag in floaters:
+            _ , averaged = ffts.process(htag, etag, search_path)
+    
+            # all_averaged[(etag, htag)] = averaged
+    
+            plt.figure(figsize=(6,4))
+            colors = plt.cm.get_cmap(colormap, len(averaged))
+    
+            for i, (base, (freqs, mean,ses, useful)) in enumerate(
+                sorted(
+                    (kv for kv in averaged.items()),
+                    # if any(s in kv[0] for s in ("_10mm_", "_12mm_", "_14mm_"))),
+                    key=lambda kv: ffts.extract_radii(kv[0])
+                )
+            ):
+    
+    	    # TODO: Replace errors if its neccesary 
+                label = f"r={ffts.extract_radii(base):.0f} mm"
+                plt.errorbar(freqs, 
+    			mean, 
+    			yerr=ses, 
+    			fmt='.-', 
+    			capsize=3, 
+    			alpha=0.85, 
+    			color=colors(i), 
+    			label=label)
+    
+            plt.xlim(0, 12) 
+            plt.xlabel("Frecuencia (Hz)")
+    
+            plt.title(f"Floater {etag} - Height {htag}")
+            plt.legend(fontsize=8, ncol=2)
+            plt.grid( linestyle='--', alpha=0.5)
+            plt.tight_layout()	
+            safe_tag = f"{etag.strip('_')}_{htag.strip('_')}"
+            plt.savefig(f"{safe_tag}.pdf")
+            plt.show()
+    
+           #  np.savez(
+           #      os.path.join(base_dir, f"fft_results_averaged_{safe_tag}.npz"),
+           #      **averaged
+           #  )
+    '''
+
+
+    dt = 1 / 125
+
+    @classmethod    
+    def extract_cal(cls, name: str) -> float:
+        
+        cal_pat = re.compile(r"_cal(\d+\.\d+)_")          # captures "0.000767"
+        m = cal_pat.search(name)
+        if not m:
+            raise ValueError(f"Could not find cal in: {name}")
+        return float(m.group(1))
+    
+    @classmethod    
+    def extract_fac(cls,name: str) -> float:
+
+        fac_pat = re.compile(r"_f(\d+(?:\.\d+)?)")       # captures "756.1381"
+        m = fac_pat.search(name)
+        if not m:
+            raise ValueError(f"Could not find factor in: {name}")
+        return float(m.group(1))
+    
+    @classmethod    
+    def extract_radii(cls,key: str) -> float:
+
+        rad_pat = re.compile(r"_(\d+(?:\.\d+)?)mm_")
+        m = rad_pat.search(key)
+        if m:
+            return float(m.group(1))
+        raise ValueError(f"Cannot parse radius from filename: {key}")
+    
+    @classmethod    
+    def strip_group_tokens(cls,name: str) -> str:
+        stem, ext = os.path.splitext(name)
+    
+        # 1) remove replica token: _C1S0001_ (and if it appears right before the extension)
+        stem = re.sub(r"_C1S\d{4}_", "_", stem)
+        stem = re.sub(r"_C1S\d{4}(?=$)", "", stem)
+    
+        # 2) remove calibration block: _cal<decimal>_
+        #    (your files look like _cal0.00022558593749999996_)
+        stem = re.sub(r"_cal\d+(?:\.\d+)?_", "_", stem)
+    
+        # 3) remove factor block: _f<number>_  OR _f<number> just before the extension
+        #    (your example ends with ..._f768.2433822186998.npy)
+        stem = re.sub(r"_f\d+(?:\.\d+)?_", "_", stem)           # with trailing underscore
+        stem = re.sub(r"_f\d+(?:\.\d+)?(?=$)", "", stem)        # right before .npy
+    
+        return stem + ext
+
+
+    @classmethod    
+    def fft_radii(cls,arr, path):
+    
+        # arr: (n_times, n_angles) = (t, ang)
+    
+        R = cls.extract_radii(path)
+        cal = cls.extract_cal(path)
+        fac = cls.extract_fac(path)
+    
+        n_times, n_angles = arr.shape
+        N = n_times
+    
+        fft_vals = np.fft.fft(arr, axis=0) / N
+        fft_vals[0, :] = 0
+    
+        freqs = np.fft.fftfreq(N, d=cls.dt)
+        pos_mask = freqs >= 0
+    
+        fft_abs_pos = np.abs(fft_vals)[pos_mask, :]  # (N_pos, n_angles)
+    
+        for i in range(n_angles):
+             fft_angle = fft_abs_pos[:,i]
+             fft_angle_max = np.max(fft_angle)
+             fft_angle = fft_angle/fft_angle_max
+              	
+             fft_abs_pos[:,i] = fft_angle
+    
+    
+        mean_over_angles = np.mean(fft_abs_pos, axis=1)
+        
+        n_non_nans = np.count_nonzero(fft_abs_pos[3, :] != 0)
+        r_px = int(R/(cal*fac))
+        n_radii = int(2*np.pi*r_px)
+    
+        if n_radii < 360:
+             useful = False
+             denom = np.sqrt(n_radii)
+        else:
+             useful = True
+             denom = np.sqrt(n_radii*(n_non_nans/360))
+    
+        # TODO primera std sobre las medias de los ángulos
+        std_over_angles  = np.std(fft_abs_pos,  axis=1)/denom
+        
+        return freqs[pos_mask], mean_over_angles, std_over_angles, useful
+    
+    
+    @classmethod    
+    def process(cls,height_tag, floater_tag, search_path):  
+        """
+        Defined for each water height and floater 
+        """
+    
+        npy_files = [
+            f for f in os.listdir(search_path)
+            if f.endswith(".npy") and floater_tag in f and height_tag in f
+        ]
+        
+        npy_files.sort(key=cls.extract_radii)  # sort by radius
+        
+        results = OrderedDict()  # keep insertion order = radius order
+        
+        for f in npy_files:
+            arr = np.load(os.path.join(search_path, f))
+            freqs, mean, std, useful = cls.fft_radii(arr, f)
+            results[f] = (freqs, mean, std, useful)
+    
+        # group replicates by  S####.npy
+        grouped = defaultdict(list)
+        
+        # {... ,
+        # "r_XXmm_a1679_t1s_XX_hXX": [
+        # (freq1, mean1, std1),
+        # (freq2, mean2, std2),
+        # (freq3, mean3, std3) 
+        # ],
+        # ... }
+        
+        for fname, (freqs, mean,ses, useful) in results.items():
+            base = cls.strip_group_tokens(fname)
+            grouped[base].append((freqs, mean,ses, useful))
+    
+        # average across replicates
+        averaged = OrderedDict()
+        for base in sorted(grouped.keys(), key=cls.extract_radii):
+            triplets = grouped[base]
+            freqs0 = triplets[0][0]                      # (F,)
+            means  = np.stack([t[1] for t in triplets])  # (R,F)
+            ses    = np.stack([t[2] for t in triplets])  # (R,F)
+        
+            with np.errstate(divide='ignore', invalid='ignore'):
+                # pesos: w_i = 1 / SE_i^2
+                w = 1.0 / np.square(ses)                 # (R,F)
+                w_sum = np.nansum(w, axis=0)             # (F,)
+                num   = np.nansum(w * means, axis=0)     # (F,)
+        
+                mean_w = np.divide(
+                    num, w_sum,
+                    out=np.full_like(w_sum, np.nan),
+                    where=w_sum > 0
+                )
+        
+                se_w = np.divide(
+                    1.0, np.sqrt(w_sum),
+                    out=np.full_like(w_sum, np.nan),
+                    where=w_sum > 0
+                )
+        
+            useful_vals = [t[3] for t in triplets]       # booleans
+            useful_red = all(useful_vals)                # o any(useful_vals), como prefieras
+        
+            averaged[base] = (freqs0, mean_w, se_w, useful_red)
+                
+            # TODO: acá hay que agregar:
+                # una división por la cantidad de datos:
+                    # se debería agregar como parámetro el factor, o el calibration	
+    		#factor
+                # medias de las stds nada más?
+                # estamos para un radio y una altura, no hay que mezclar cosas 
+                # todavía
+        return results, averaged
+    
