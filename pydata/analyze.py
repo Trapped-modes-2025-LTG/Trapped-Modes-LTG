@@ -947,20 +947,40 @@ class ffts:
     '''
 
     =============================
-    Example of use:
-        radios_npys must be a folder of .npy files, named as
+    Requirement:  radios_npys must be a folder of .npy files, named like:
         
         r_8mm_a1679_t1s_20_h67_C1S0003_cal0.00022558593749999996_f768.2496931285473.npy
-    =============================
 
-    import matplotlib
-    matplotlib.use("TkAgg")          # set GUI backend
-    import matplotlib.pyplot as plt
-    import os
-    import sys
-    sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..', "..")))
-    from pydata.analyze import ffts
-    
+    =============================
+    Imports: 
+
+        import matplotlib
+        matplotlib.use("TkAgg")          # set GUI backend (Big plots in terminal)
+        import matplotlib.pyplot as plt
+        import os
+        import sys
+        import numpy as np
+        sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..', "..")))
+            # set your path to "analyze.py"
+        from pydata.analyze import ffts
+
+    =============================
+    Examples to use ffts:
+        1a) Create "fft_results_averaged" folder, with .npy files as
+
+         {
+          'r_0mm_a1679_t1s_0_h47.npy':   (freqs0, mean0, ses0),
+          'r_2mm_a1679_t1s_0_h47.npy':   (freqs2, mean2, ses2),
+          'r_4mm_a1679_t1s_0_h47.npy':   (freqs4, mean4, ses4),
+          ...
+         }
+
+        1b) Way to load files 
+
+        2) Fit curves, using saved "fft_results_averaged" folder
+
+    ============(1a)============
+       
     colormap = "magma"
     heights = ["_h47_", "_h54_", "_h67_"]
     floaters = ["_0_", "_10_", "_15_", "_20_"]
@@ -968,6 +988,9 @@ class ffts:
     base_dir = os.path.dirname(os.path.abspath(__file__))
     search_subfolder = "radios_npys"
     search_path = os.path.join(base_dir, search_subfolder)
+    
+    save_dir = os.path.join(base_dir, "fft_results_averaged")
+    os.makedirs(save_dir, exist_ok=True)
     
     for htag in heights:
         for etag in floaters:
@@ -1007,13 +1030,42 @@ class ffts:
             safe_tag = f"{etag.strip('_')}_{htag.strip('_')}"
             plt.savefig(f"{safe_tag}.pdf")
             plt.show()
+        
+            flat = {}
+            for base, (freqs, mean, ses, useful) in averaged.items():
+                flat[f"{base}_freqs"]  = freqs
+                flat[f"{base}_mean"]   = mean
+                flat[f"{base}_ses"]    = ses
+            
+            np.savez(os.path.join(save_dir, f"fft_results_averaged_{safe_tag}.npz"), **flat)
     
-           #  np.savez(
-           #      os.path.join(base_dir, f"fft_results_averaged_{safe_tag}.npz"),
-           #      **averaged
-           #  )
-    '''
+    ============(1b)============
+    # Change both .npy file name (1st one) and npy key (2nd one)
+    # if it's needed
 
+    data = load_and_plot("fft_results_averaged_0_h47.npz")
+    freqs, mean, ses = data['r_12mm_a1679_t1s_0_h47.npy']
+
+    ============(2)=============
+
+    sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..', "..")))
+    from pydata.analyze import ffts
+    
+    base_dir   = os.path.dirname(os.path.abspath(__file__))
+    
+    save_dir   = os.path.join(base_dir, "fft_results_averaged")
+    results_dir = os.path.join(base_dir, "ajustes_resultados")
+    
+    archivos_ts = [0, 10, 15, 20]
+    
+    file_paths = [os.path.join(save_dir, f"fft_results_averaged_{t}_h47.npz") for t in archivos_ts]
+    
+    radios = ["2", "4", "6"]
+    
+    fit = ffts.fit_me(radios, archivos_ts, file_paths, results_dir)
+
+
+    '''
 
     dt = 1 / 125
 
@@ -1066,7 +1118,6 @@ class ffts:
 
     @classmethod    
     def fft_radii(cls,arr, path):
-    
         # arr: (n_times, n_angles) = (t, ang)
     
         R = cls.extract_radii(path)
@@ -1085,34 +1136,38 @@ class ffts:
         fft_abs_pos = np.abs(fft_vals)[pos_mask, :]  # (N_pos, n_angles)
     
         for i in range(n_angles):
-             fft_angle = fft_abs_pos[:,i]
-             fft_angle_max = np.max(fft_angle)
-             fft_angle = fft_angle/fft_angle_max
-              	
-             fft_abs_pos[:,i] = fft_angle
-    
+            fft_angle = fft_abs_pos[:, i]
+            fft_angle_max = np.max(fft_angle)
+            if fft_angle_max > 0:                     # <-- minimal guard
+                fft_angle = fft_angle / fft_angle_max
+            else:
+                fft_angle = 0.0 * fft_angle           # no signal on this angle
+            fft_abs_pos[:, i] = fft_angle
     
         mean_over_angles = np.mean(fft_abs_pos, axis=1)
-        
-        n_non_nans = np.count_nonzero(fft_abs_pos[3, :] != 0)
-        r_px = int(R/(cal*fac))
-        n_radii = int(2*np.pi*r_px)
     
-        if n_radii < 360:
-             useful = False
-             denom = np.sqrt(n_radii)
+        n_non_nans = np.count_nonzero(fft_abs_pos[3, :] != 0)
+        r_px = (R / (cal * fac))
+        n_radii = int(2 * np.pi * r_px)
+    
+        if n_radii == 0:
+            useful = False
+            denom = 1
+        elif 0 < n_radii < 360:
+            useful = False
+            denom = np.sqrt(n_radii)
         else:
-             useful = True
-             denom = np.sqrt(n_radii*(n_non_nans/360))
+            useful = True
+            # <-- minimal guard to avoid denom == 0 if no angles are active
+            denom = np.sqrt(n_radii * (n_non_nans / 360)) if n_non_nans > 0 else 1
     
         # TODO primera std sobre las medias de los ángulos
-        std_over_angles  = np.std(fft_abs_pos,  axis=1)/denom
-        
-        return freqs[pos_mask], mean_over_angles, std_over_angles, useful
+        std_over_angles = np.std(fft_abs_pos, axis=1) / denom
     
+        return freqs[pos_mask], mean_over_angles, std_over_angles, useful   
     
     @classmethod    
-    def process(cls,height_tag, floater_tag, search_path):  
+    def process(cls, height_tag, floater_tag, search_path):  
         """
         Defined for each water height and floater 
         """
@@ -1133,138 +1188,146 @@ class ffts:
     
         # group replicates by  S####.npy
         grouped = defaultdict(list)
-        
-        # {... ,
-        # "r_XXmm_a1679_t1s_XX_hXX": [
-        # (freq1, mean1, std1),
-        # (freq2, mean2, std2),
-        # (freq3, mean3, std3) 
-        # ],
-        # ... }
-        
-        for fname, (freqs, mean,ses, useful) in results.items():
+        for fname, (freqs, mean, ses, useful) in results.items():
             base = cls.strip_group_tokens(fname)
-            grouped[base].append((freqs, mean,ses, useful))
+            grouped[base].append((freqs, mean, ses, useful))
     
         # average across replicates
         averaged = OrderedDict()
+        EPS = 1e-8  # <-- piso para evitar SE=0 -> pesos inf
+    
         for base in sorted(grouped.keys(), key=cls.extract_radii):
             triplets = grouped[base]
             freqs0 = triplets[0][0]                      # (F,)
             means  = np.stack([t[1] for t in triplets])  # (R,F)
             ses    = np.stack([t[2] for t in triplets])  # (R,F)
-        
+    
+            # --- parche mínimo: evitar 0/inf/NaN en SE antes de los pesos
+            ses = np.where(~np.isfinite(ses), np.nan, ses)
+            ses = np.where(ses <= 0, EPS, ses)
+    
             with np.errstate(divide='ignore', invalid='ignore'):
                 # pesos: w_i = 1 / SE_i^2
                 w = 1.0 / np.square(ses)                 # (R,F)
                 w_sum = np.nansum(w, axis=0)             # (F,)
                 num   = np.nansum(w * means, axis=0)     # (F,)
-        
+    
+                # si w_sum==0 en algún bin, usar fallback sin pesos para NO dejar NaNs
+                fallback_mean = np.nanmean(means, axis=0)
+                fallback_se   = np.nanstd(means, axis=0) / np.sqrt(np.sum(np.isfinite(means), axis=0).clip(min=1))
+    
                 mean_w = np.divide(
                     num, w_sum,
-                    out=np.full_like(w_sum, np.nan),
+                    out=fallback_mean,                   # <-- fallback
                     where=w_sum > 0
                 )
-        
+    
                 se_w = np.divide(
                     1.0, np.sqrt(w_sum),
-                    out=np.full_like(w_sum, np.nan),
+                    out=fallback_se,                     # <-- fallback
                     where=w_sum > 0
                 )
-        
-            useful_vals = [t[3] for t in triplets]       # booleans
-            useful_red = all(useful_vals)                # o any(useful_vals), como prefieras
-        
-            averaged[base] = (freqs0, mean_w, se_w, useful_red)
-                
-            # TODO: acá hay que agregar:
-                # una división por la cantidad de datos:
-                    # se debería agregar como parámetro el factor, o el calibration	
-    		#factor
-                # medias de las stds nada más?
-                # estamos para un radio y una altura, no hay que mezclar cosas 
-                # todavía
-        return results, averaged
     
+            useful_vals = [t[3] for t in triplets]       # booleans
+            useful_red = all(useful_vals)                
+    
+            averaged[base] = (freqs0, mean_w, se_w, useful_red)
+    
+        return results, averaged
     @classmethod
-    def fit_me(data, key, radios, archivos_ts, file_paths, results_dir, polgrad = 1, f_min = 4.25, f_max = 5.75):
+    def fit_me(cls, radios, archivos_ts, file_paths, results_dir, polgrad = 1, f_min = 4.25, f_max = 5.75):
         '''
         Example of use:
-        ---------------
-        results_dir = os.path.join(base_dir, 'ajustes_resultados')
-        file_path = os.path.join(base_dir, 'medimos_con_juan', 'fft_results_averaged_20_h47.npz')
-        data = np.load(file_path)
+
+        =============================
+
+        import matplotlib
+        matplotlib.use("TkAgg")
+        import matplotlib.pyplot as plt
+        import os
+        import sys
+        import numpy as np
         
-        key = 'r_0mm_a1679_t1s_20_h47_C1'
-        radios = ['0', '12', '20']
-        archivos_ts = [0, 10, 15, 20] 
+        sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..', "..")))
+        from pydata.analyze import ffts
         
-        file_paths = [
-            os.path.join(base_dir, 'medimos_con_juan', 'fft_results_averaged_0_h47.npz'),
-            os.path.join(base_dir, 'medimos_con_juan', 'fft_results_averaged_10_h47.npz'),
-            os.path.join(base_dir, 'medimos_con_juan', 'fft_results_averaged_15_h47.npz'),
-            os.path.join(base_dir, 'medimos_con_juan', 'fft_results_averaged_20_h47.npz'),
-        ]
+        base_dir   = os.path.dirname(os.path.abspath(__file__))
         
-        fit = fit_me(data, key, radios, archivos_ts, file_paths, results_dir)
+        save_dir   = os.path.join(base_dir, "fft_results_averaged")
+        results_dir = os.path.join(base_dir, "ajustes_resultados")
+        
+        archivos_ts = [0, 10, 15, 20]
+        
+        file_paths = [os.path.join(save_dir, f"fft_results_averaged_{t}_h47.npz") for t in archivos_ts]
+        
+        radios = ["2", "4", "6"]
+        
+        fit = ffts.fit_me(radios, archivos_ts, file_paths, results_dir)
 
         '''
-        from scipy.optimize import curve_fit
-        
-        x = data[key]
-        frec = x[0, :]
-        amp = x[1, :] 
-        sigmas = x[2, :]
-        
-        def lorentz(f, A1, A2, gamma1, gamma2, f1, f2, B):
-            return A1 * (0.5 * gamma1)**2 / ((f - f1)**2 + (0.5 * gamma1)**2) + A2 * (0.5 * gamma2)**2 / ((f - f2)**2 + (0.5 * gamma2)**2) + B
-        
-        
-        os.makedirs(results_dir, exist_ok=True)
 
-        # iterar sobre los archivos 
-        for i,path in enumerate(file_paths):
-            data = np.load(path)#, allow_pickle=True)
+        from scipy.optimize import curve_fit
+    
+        def lorentz(f, A1, A2, gamma1, gamma2, f1, f2, B):
+            return A1 * (0.5 * gamma1)**2 / ((f - f1)**2 + (0.5 * gamma1)**2) \
+                 + A2 * (0.5 * gamma2)**2 / ((f - f2)**2 + (0.5 * gamma2)**2) + B
+    
+        os.makedirs(results_dir, exist_ok=True)
+    
+        for i, path in enumerate(file_paths):
+            data = cls._load_and_plot(path)  # { base: (freqs, mean, ses) }
             file_name = os.path.splitext(os.path.basename(path))[0]
             path_dir = os.path.join(results_dir, file_name)
             os.makedirs(path_dir, exist_ok=True)
-            
+    
             t1s_val = archivos_ts[i]
-
-            # iterar sobre los radios
+    
             for r in radios:
-                key = f"r_{r}mm_a1679_t1s_{t1s_val}_h47_C1"
-                if key not in data.files:
-                    print(f"[!] Key {key} no encontrada en {file_name}")
+                key = f"r_{r}mm_a1679_t1s_{t1s_val}_h47.npy"  # <-- FIXED f-string
+    
+                if key not in data:
+                    print(f"[!] Key {key} didn't find in {file_name}")
                     continue
+    
+                freqs, mean, ses = data[key]
 
-                x = data[key]
-                frec, amp, sigmas = x[0, :], x[1, :], x[2, :]
-
-                
-                f_min, f_max = 4.25, 5.75
-                mask_fit = (frec >= f_min) & (frec <= f_max)
-                f_fit, amps_fit, sigmas_fit = frec[mask_fit], amp[mask_fit], sigmas[mask_fit]
-
-
+                # guards
+                if freqs is None or freqs.size == 0 or mean is None or mean.size == 0:
+                    print(f"[!] Empty data for {key} in {file_name}")
+                    continue
+    
+                # fit window
+                mask_fit   = (freqs >= f_min) & (freqs <= f_max)
+                f_fit      = freqs[mask_fit]
+                amps_fit   = mean[mask_fit]
+                sigmas_fit = ses[mask_fit] if ses is not None else np.ones_like(amps_fit)
+    
+                if f_fit.size < 5:
+                    print(f"[!] Too few points in window for {key} in {file_name}")
+                    continue
+    
+                # detrend
                 coef = np.polyfit(f_fit, amps_fit, polgrad)
                 poly_trend = np.polyval(coef, f_fit)
                 amps_fit_detrended = amps_fit - poly_trend
-                
-                
-                picos, _ = find_peaks(amps_fit_detrended, threshold = 0.0005)
-
+    
+                # peaks
+                picos, _ = find_peaks(amps_fit_detrended, threshold=0.0005)
+                if picos.size < 2:
+                    print(f"[!] Not enough peaks for {key} in {file_name}")
+                    continue
+    
                 A1_0 = amps_fit_detrended[picos[0]]
                 A2_0 = amps_fit_detrended[picos[1]]
                 f1_0 = f_fit[picos[0]]
                 f2_0 = f_fit[picos[1]]
                 gamma1_0 = (f_fit[picos[1]] - f_fit[picos[0]])/1.7
                 gamma2_0 = gamma1_0
-                
-                B_0 = 0
+    
+                B_0 = 0.0
+                # keep your original p0 order if you prefer (works with your lorentz def)
                 p0 = [A1_0, A2_0, f1_0, f2_0, gamma1_0, gamma2_0, B_0]
-
-
+    
                 try:
                     popt, pcov = curve_fit(
                         lorentz, f_fit, amps_fit_detrended,
@@ -1274,15 +1337,13 @@ class ffts:
                 except Exception as e:
                     print(f"[x] Falló el ajuste para {key} en {file_name}: {e}")
                     continue
-
-
+    
+                # plot + save
                 f_plot = np.linspace(f_fit.min(), f_fit.max(), 500)
                 fit_curve = lorentz(f_plot, *popt)
-
-          
+    
                 fig, (ax1, ax2) = plt.subplots(2, 1, figsize=(8, 6), sharex=True,
                                                gridspec_kw={'height_ratios': [3, 1]})
-
                 ax1.errorbar(f_fit, amps_fit_detrended, yerr=sigmas_fit,
                              fmt='.', color='gray', alpha=0.7, label='Datos')
                 ax1.plot(f_plot, fit_curve, 'r-', lw=2, label='Ajuste Lorentziano')
@@ -1290,27 +1351,48 @@ class ffts:
                 ax1.set_title(f"{file_name} – {key}")
                 ax1.legend(loc='best', fontsize=8, frameon=True)
                 ax1.grid(True, ls='--', alpha=0.5)
-
+    
                 residuals = amps_fit_detrended - np.interp(f_fit, f_plot, fit_curve)
                 ax2.axhline(0, color='black', lw=1)
-                ax2.plot(f_fit, residuals, 'o', color='blue', markersize=3, label='Residuos')
+                ax2.plot(f_fit, residuals, 'o', color='blue', markersize=3)
                 ax2.errorbar(f_fit, residuals, yerr=sigmas_fit, alpha=0.7)
                 ax2.set_xlabel('Frecuencia [Hz]')
                 ax2.set_ylabel('Residuo')
                 ax2.grid(True, ls='--', alpha=0.5)
-
+    
                 plt.tight_layout()
-
-
                 fig_path = os.path.join(path_dir, f"{key}.png")
                 plt.savefig(fig_path, dpi=200)
                 plt.close(fig)
-
-           
+    
                 param_names = ['A1', 'A2', 'f1', 'f2', 'γ1', 'γ2', 'B']
                 txt_path = os.path.join(path_dir, f"{key}_params.txt")
                 with open(txt_path, "w") as f:
                     for name, val in zip(param_names, popt):
                         f.write(f"{name} = {val:.6g}\n")
+   
+    @classmethod
+    def _load_and_plot(cls, npz_path):
+    
+        npz = np.load(npz_path)
+        bases = [k[:-6] for k in npz.files if k.endswith("_freqs")]
+        if not bases:
+            print(f"[!] No series found in {os.path.basename(npz_path)}")
+            return {}
+    
+        def sort_key(base):
+            try:
+                return ffts.extract_radii(base)
+            except Exception:
+                return float("+inf")
+    
+        bases = sorted(bases, key=sort_key)
+    
+        out = {}
+        for base in bases:
+            freqs = npz[base + "_freqs"]
+            mean  = npz[base + "_mean"]
+            ses   = npz[base + "_ses"]  # present in your saved schema
+            out[base] = (freqs, mean, ses)
+        return out
 
-                print(f"✔ Guardado: {fig_path}")
