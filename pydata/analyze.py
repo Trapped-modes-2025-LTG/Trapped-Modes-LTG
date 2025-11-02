@@ -1370,8 +1370,7 @@ class ffts:
                 with open(txt_path, "w") as f:
                     for name, val in zip(param_names, popt):
                         f.write(f"{name} = {val:.6g}\n")
-    
-    
+   
     @classmethod
     def _load_and_plot(cls, npz_path):
     
@@ -1396,3 +1395,4 @@ class ffts:
             ses   = npz[base + "_ses"]  # present in your saved schema
             out[base] = (freqs, mean, ses)
         return out
+
