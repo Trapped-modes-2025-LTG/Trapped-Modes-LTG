@@ -275,7 +275,7 @@ class analyze:
                 np.save(output_path, height_map_polar)
                 with open(factor_path, "a") as f:  # append
                     f.write(f"{i}\t{factor}\n")
-
+                    
             if smoothed:         
                 with open(centers_path, "a") as f:  # append
                     f.write(f"{i}\t{center}\n")
@@ -940,6 +940,7 @@ class analyze:
         dist = x
         return dist
 
+
 class ffts:
     
     import re
@@ -1040,6 +1041,7 @@ class ffts:
             np.savez(os.path.join(save_dir, f"fft_results_averaged_{safe_tag}.npz"), **flat)
     
     ============(1b)============
+
     # Change both .npy file name (1st one) and npy key (2nd one)
     # if it's needed
 
@@ -1234,37 +1236,11 @@ class ffts:
             averaged[base] = (freqs0, mean_w, se_w, useful_red)
     
         return results, averaged
+
+    # 2 
+
     @classmethod
     def fit_me(cls, radios, archivos_ts, file_paths, results_dir, polgrad = 1, f_min = 4.25, f_max = 5.75):
-        '''
-        Example of use:
-
-        =============================
-
-        import matplotlib
-        matplotlib.use("TkAgg")
-        import matplotlib.pyplot as plt
-        import os
-        import sys
-        import numpy as np
-        
-        sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..', "..")))
-        from pydata.analyze import ffts
-        
-        base_dir   = os.path.dirname(os.path.abspath(__file__))
-        
-        save_dir   = os.path.join(base_dir, "fft_results_averaged")
-        results_dir = os.path.join(base_dir, "ajustes_resultados")
-        
-        archivos_ts = [0, 10, 15, 20]
-        
-        file_paths = [os.path.join(save_dir, f"fft_results_averaged_{t}_h47.npz") for t in archivos_ts]
-        
-        radios = ["2", "4", "6"]
-        
-        fit = ffts.fit_me(radios, archivos_ts, file_paths, results_dir)
-
-        '''
 
         from scipy.optimize import curve_fit
     
