@@ -1052,22 +1052,18 @@ class ffts:
 
     ============(2)=============
 
-    sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..', "..")))
-    from pydata.analyze import ffts
-    
     base_dir   = os.path.dirname(os.path.abspath(__file__))
     
     save_dir   = os.path.join(base_dir, "fft_results_averaged")
     results_dir = os.path.join(base_dir, "ajustes_resultados")
     
-    archivos_ts = [0, 10, 15, 20]
+    file_paths = [
+        os.path.join(save_dir, fname)
+        for fname in os.listdir(save_dir)
+        if fname.endswith(".npz") or fname.endswith(".npy")  # adjust if needed
+    ]
     
-    file_paths = [os.path.join(save_dir, f"fft_results_averaged_{t}_h47.npz") for t in archivos_ts]
-    
-    radios = ["2", "4", "6"]
-    
-    fit = ffts.fit_me(radios, archivos_ts, file_paths, results_dir)
-
+    fit = ffts.fit_me(file_paths, results_dir)
 
     '''
 
@@ -1179,6 +1175,7 @@ class ffts:
         npy_files = [
             f for f in os.listdir(search_path)
             if f.endswith(".npy") and floater_tag in f and height_tag in f
+                                       # while computing errors. Looks more real :)f
         ]
         
         npy_files.sort(key=cls.extract_radii)  # sort by radius
@@ -1264,7 +1261,7 @@ class ffts:
     # 2 
 
     @classmethod
-    def fit_me(cls, radios, archivos_ts, file_paths, results_dir, polgrad = 1, f_min = 4.25, f_max = 5.75):
+    def fit_me(cls, file_paths, results_dir, polgrad = 1, f_min = 4.25, f_max = 5.75):
 
         from scipy.optimize import curve_fit
     
@@ -1280,14 +1277,7 @@ class ffts:
             path_dir = os.path.join(results_dir, file_name)
             os.makedirs(path_dir, exist_ok=True)
     
-            t1s_val = archivos_ts[i]
-    
-            for r in radios:
-                key = f"r_{r}mm_a1679_t1s_{t1s_val}_h47.npy"  # <-- FIXED f-string
-    
-                if key not in data:
-                    print(f"[!] Key {key} didn't find in {file_name}")
-                    continue
+            for key in data.keys():
     
                 freqs, mean, ses = data[key]
 
