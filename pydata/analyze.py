@@ -995,7 +995,9 @@ class ffts:
     
     for htag in heights:
         for etag in floaters:
-            _ , averaged = ffts.process(htag, etag, search_path)
+            _ , averaged = ffts.process(htag, etag, search_path, weight_bool = False)
+                                       # weight_bool = False not ponderate weights
+                                       # while computing errors. Looks more real :)
     
             # all_averaged[(etag, htag)] = averaged
     
@@ -1169,7 +1171,7 @@ class ffts:
         return freqs[pos_mask], mean_over_angles, std_over_angles, useful   
     
     @classmethod    
-    def process(cls, height_tag, floater_tag, search_path):  
+    def process(cls, height_tag, floater_tag, search_path, weight_bool = True):  
         """
         Defined for each water height and floater 
         """
@@ -1196,44 +1198,66 @@ class ffts:
     
         # average across replicates
         averaged = OrderedDict()
-        EPS = 1e-8  # <-- piso para evitar SE=0 -> pesos inf
-    
+        EPS = 1e-8  # floor to avoid 0/inf/NaN in SE before weights
+
         for base in sorted(grouped.keys(), key=cls.extract_radii):
             triplets = grouped[base]
             freqs0 = triplets[0][0]                      # (F,)
-            means  = np.stack([t[1] for t in triplets])  # (R,F)
-            ses    = np.stack([t[2] for t in triplets])  # (R,F)
-    
-            # --- parche mínimo: evitar 0/inf/NaN en SE antes de los pesos
+            means  = np.stack([t[1] for t in triplets])  # (R,F) replicate spectra
+            ses    = np.stack([t[2] for t in triplets])  # (R,F) per-replicate "SE over angles"
+
+            # Clean/guard the ses before using them as inverse-variance weights
             ses = np.where(~np.isfinite(ses), np.nan, ses)
             ses = np.where(ses <= 0, EPS, ses)
-    
+
             with np.errstate(divide='ignore', invalid='ignore'):
-                # pesos: w_i = 1 / SE_i^2
+                # weights: w_i = 1 / SE_i^2
                 w = 1.0 / np.square(ses)                 # (R,F)
                 w_sum = np.nansum(w, axis=0)             # (F,)
-                num   = np.nansum(w * means, axis=0)     # (F,)
-    
-                # si w_sum==0 en algún bin, usar fallback sin pesos para NO dejar NaNs
-                fallback_mean = np.nanmean(means, axis=0)
-                fallback_se   = np.nanstd(means, axis=0) / np.sqrt(np.sum(np.isfinite(means), axis=0).clip(min=1))
-    
+
+                # Fallbacks (unweighted) in case a whole frequency bin has no valid weights
+                fallback_mean = np.nanmean(means, axis=0)                # (F,)
+                fallback_std  = np.nanstd(means,  axis=0)                # (F,)
+
+                # Weighted mean per frequency bin
+                num = np.nansum(w * means, axis=0)                       # (F,)
                 mean_w = np.divide(
                     num, w_sum,
-                    out=fallback_mean,                   # <-- fallback
+                    out=fallback_mean.copy(),
                     where=w_sum > 0
-                )
+                )                                                         # (F,)
+
+                # --- NEW: weighted std around the weighted mean ---
+                # var_w = sum_i w_i (x_i - mean_w)^2 / sum_i w_i
+                diffs = means - mean_w[None, :]                           # (R,F)
+               
+                if weight_bool == True:
+
+                    num_var = np.nansum(w * np.square(diffs), axis=0)         # (F,)
     
-                se_w = np.divide(
-                    1.0, np.sqrt(w_sum),
-                    out=fallback_se,                     # <-- fallback
-                    where=w_sum > 0
-                )
+                    var_w = np.divide(
+                        num_var, w_sum,
+                        out=np.square(fallback_std),
+                        where=w_sum > 0
+                    )                                                         # (F,)
     
+                    err_w = np.sqrt(var_w)                                    # (F,) weighted std
+                else:
+                    num_var = np.nanmean(np.square(diffs), axis=0)# (F,) unweighted population variance
+
+                    # fallback: if all diffs are nan in a bin, use fallback_std^2
+                    var_unw = np.where(
+                        np.isfinite(num_var),
+                        num_var,
+                        np.square(fallback_std)
+                    )
+
+                    err_w = np.sqrt(var_unw)     
             useful_vals = [t[3] for t in triplets]       # booleans
-            useful_red = all(useful_vals)                
-    
-            averaged[base] = (freqs0, mean_w, se_w, useful_red)
+            useful_red = all(useful_vals)
+
+            # Store weighted mean and the requested "std-like" error
+            averaged[base] = (freqs0, mean_w, err_w, useful_red)
     
         return results, averaged
 
