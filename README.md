@@ -6,6 +6,9 @@ Python code to perform free surface profilometry with synthetic schlieren imagin
   <img src="/examples/example_validation.png" alt="Example validation" width="600">
 </p>
 
+<p align="center">
+  <img src="/examples/example_radii.png" alt="Example radii" width="600">
+</p>
 
 
 ## References
